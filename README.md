@@ -42,7 +42,7 @@ Dataset(kaggle)-https://www.kaggle.com/datasets/hosseinbadrnezhad/mall-customer-
 - ✅ **Interactive Dashboard** — real-time segment & gender filters updating all charts live
 - ✅ **Responsive Design** — works on desktop, tablet, and mobile
 - ✅ **Collapsible Sidebar** — with smooth animation
-- ✅ **Export Report** — generates a full 3-page professional PDF report
+- ✅ **Report** — generates a full 3-page professional PDF report
 
 ---
 
