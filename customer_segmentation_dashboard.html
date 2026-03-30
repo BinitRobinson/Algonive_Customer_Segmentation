@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Customer Segmentation Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#0f1117;--surface:#181c27;--surface2:#1e2333;--border:rgba(255,255,255,0.07);
+  --text:#e8eaf0;--muted:#7c8299;--accent:#4f8ef7;
+  --c1:#4f8ef7;--c2:#2ec4a0;--c3:#f4845f;--c4:#e05c8a;--c5:#9b7fe8;
+  --radius:12px;--sidebar-w:220px;
+}
+body{background:var(--bg);color:var(--text);font-family:"DM Sans",sans-serif;font-size:14px;min-height:100vh;}
+.layout{display:flex;min-height:100vh;}
+
+/* SIDEBAR */
+.sidebar{
+  width:var(--sidebar-w);min-height:100vh;background:var(--surface);
+  border-right:1px solid var(--border);padding:28px 20px;
+  position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:6px;
+  flex-shrink:0;transition:width 0.25s cubic-bezier(.4,0,.2,1);overflow:hidden;
+}
+.sidebar.collapsed{width:60px;padding:28px 10px;}
+.sidebar.collapsed .logo-text,.sidebar.collapsed .logo-sub,
+.sidebar.collapsed .nav-label,.sidebar.collapsed .nav-label-text,
+.sidebar.collapsed .sidebar-footer{opacity:0;width:0;overflow:hidden;white-space:nowrap;pointer-events:none;}
+.sidebar.collapsed .nav-item{justify-content:center;padding:9px 0;}
+.sidebar.collapsed .logo{justify-content:center;}
+.sidebar.collapsed .toggle-btn{justify-content:center;}
+.sidebar.collapsed .toggle-btn svg{transform:rotate(180deg);}
+
+.logo{display:flex;align-items:center;gap:10px;padding-bottom:24px;border-bottom:1px solid var(--border);margin-bottom:16px;}
+.logo-icon{width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,#4f8ef7,#9b7fe8);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:600;color:#fff;flex-shrink:0;}
+.logo-text{font-size:14px;font-weight:600;color:var(--text);white-space:nowrap;}
+.logo-sub{font-size:10px;color:var(--muted);margin-top:1px;white-space:nowrap;}
+.nav-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;padding:12px 10px 6px;white-space:nowrap;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;color:var(--muted);font-size:13px;cursor:pointer;border:none;background:none;width:100%;text-align:left;transition:all 0.15s;white-space:nowrap;}
+.nav-item:hover{background:var(--surface2);color:var(--text);}
+.nav-item.active{background:rgba(79,142,247,0.12);color:var(--accent);}
+.nav-icon{width:16px;height:16px;opacity:0.7;flex-shrink:0;}
+.nav-label-text{transition:opacity 0.2s,width 0.25s;overflow:hidden;}
+.toggle-btn{display:flex;align-items:center;gap:8px;background:none;border:none;cursor:pointer;color:var(--muted);font-size:12px;padding:8px 12px;border-radius:8px;width:100%;margin-top:8px;transition:background 0.15s,color 0.15s;font-family:"DM Sans",sans-serif;white-space:nowrap;}
+.toggle-btn:hover{background:var(--surface2);color:var(--text);}
+.toggle-btn svg{transition:transform 0.25s;flex-shrink:0;}
+.sidebar-footer{margin-top:auto;padding-top:20px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);line-height:1.6;white-space:nowrap;}
+
+/* MAIN */
+.main{flex:1;padding:28px 32px;overflow-x:hidden;min-width:0;}
+.page-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px;}
+.page-title{font-size:22px;font-weight:600;color:var(--text);}
+.page-sub{font-size:13px;color:var(--muted);margin-top:4px;}
+.header-badges{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.badge{font-size:11px;padding:5px 12px;border-radius:20px;font-weight:500;font-family:"DM Mono",monospace;}
+.badge-blue{background:rgba(79,142,247,0.15);color:#4f8ef7;border:1px solid rgba(79,142,247,0.25);}
+.badge-date{background:var(--surface2);color:var(--muted);border:1px solid var(--border);}
+
+/* FILTER BAR */
+.filter-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 18px;margin-bottom:20px;}
+.filter-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;margin-right:2px;}
+.filter-btn{font-size:12px;padding:5px 14px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-family:"DM Sans",sans-serif;transition:all 0.15s;}
+.filter-btn:hover,.filter-btn.active{background:rgba(79,142,247,0.15);color:var(--accent);border-color:rgba(79,142,247,0.3);}
+.filter-sep{color:var(--border);margin:0 4px;}
+
+/* KPI */
+.kpi-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin-bottom:24px;}
+.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;position:relative;overflow:hidden;transition:transform 0.2s,border-color 0.2s;}
+.kpi-card:hover{transform:translateY(-2px);border-color:rgba(255,255,255,0.14);}
+.kpi-card::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;}
+.kpi-card.c1::before{background:var(--c1)}.kpi-card.c2::before{background:var(--c2)}.kpi-card.c3::before{background:var(--c3)}.kpi-card.c4::before{background:var(--c4)}.kpi-card.c5::before{background:var(--c5)}
+.kpi-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;}
+.kpi-value{font-size:26px;font-weight:600;color:var(--text);font-family:"DM Mono",monospace;}
+.kpi-delta{font-size:11px;color:var(--muted);margin-top:6px;}
+.kpi-icon{position:absolute;right:16px;top:18px;font-size:20px;opacity:0.15;}
+
+/* INSIGHT */
+.insight-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;}
+.insight{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 16px;border-left:3px solid;}
+.insight.i1{border-left-color:var(--c1)}.insight.i2{border-left-color:var(--c2)}.insight.i3{border-left-color:var(--c3)}
+.insight-title{font-size:11px;font-weight:500;color:var(--text);margin-bottom:4px;}
+.insight-body{font-size:11px;color:var(--muted);line-height:1.5;}
+
+/* CHARTS */
+.row{display:grid;gap:16px;margin-bottom:16px;}
+.row-2-1{grid-template-columns:1.3fr 0.7fr;}
+.row-3{grid-template-columns:1fr 1fr 1fr;}
+.row-2{grid-template-columns:1fr 1fr;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px;transition:border-color 0.2s;}
+.card:hover{border-color:rgba(255,255,255,0.12);}
+.card-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;}
+.card-title{font-size:12px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;}
+.card-tag{font-size:10px;padding:3px 8px;border-radius:4px;background:var(--surface2);color:var(--muted);font-family:"DM Mono",monospace;}
+.legend{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;}
+.leg{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);}
+.leg-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+
+/* TABLE */
+.seg-table-wrap{overflow-x:auto;}
+.seg-table{width:100%;border-collapse:collapse;}
+.seg-table thead th{font-size:10px;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);padding:0 8px 10px;text-align:left;font-weight:500;}
+.seg-table thead th:last-child{text-align:right;}
+.seg-table tbody tr{border-top:1px solid var(--border);}
+.seg-table tbody tr:hover{background:rgba(255,255,255,0.02);}
+.seg-table tbody td{padding:10px 8px;font-size:13px;color:var(--text);vertical-align:middle;}
+.seg-table tbody td:last-child{text-align:right;}
+.seg-dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:8px;vertical-align:middle;}
+.bar-wrap{background:rgba(255,255,255,0.06);border-radius:3px;height:5px;width:100%;margin-top:4px;}
+.bar-fill{height:5px;border-radius:3px;transition:width 0.6s ease;}
+.pct-badge{font-size:11px;font-family:"DM Mono",monospace;color:var(--muted);min-width:38px;display:inline-block;text-align:right;}
+
+/* NO DATA */
+.no-data{display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:13px;font-style:italic;}
+
+/* MOBILE */
+.hamburger{display:none;flex-direction:column;justify-content:center;gap:5px;background:none;border:none;cursor:pointer;padding:8px;border-radius:8px;}
+.hamburger span{display:block;width:20px;height:2px;background:var(--text);border-radius:2px;transition:all 0.25s;}
+.hamburger.open span:nth-child(1){transform:translateY(7px) rotate(45deg);}
+.hamburger.open span:nth-child(2){opacity:0;}
+.hamburger.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg);}
+.mobile-topbar{display:none;align-items:center;justify-content:space-between;padding:14px 20px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;}
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:150;}
+.sidebar-overlay.visible{display:block;}
+
+@media(max-width:1100px){
+  .kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr));}
+  .row-3{grid-template-columns:1fr 1fr;}
+  .row-2-1{grid-template-columns:1fr;}
+  .insight-strip{grid-template-columns:1fr 1fr;}
+}
+@media(max-width:768px){
+  .mobile-topbar{display:flex;}.hamburger{display:flex;}
+  .layout{flex-direction:column;}
+  .sidebar{position:fixed;top:0;left:-240px;width:220px;height:100vh;z-index:200;transition:left 0.28s cubic-bezier(.4,0,.2,1);padding-top:70px;}
+  .sidebar.open{left:0;}.logo{display:none;}
+  .main{padding:16px;}
+  .page-header{flex-direction:column;gap:10px;}
+  .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}
+  .kpi-value{font-size:20px;}
+  .insight-strip{grid-template-columns:1fr;}
+  .row-2-1,.row-3,.row-2{grid-template-columns:1fr;}
+  .filter-sep{display:none;}
+}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+.kpi-card{animation:fadeUp 0.4s ease both;}
+.kpi-card:nth-child(1){animation-delay:0.05s;}.kpi-card:nth-child(2){animation-delay:0.1s;}
+.kpi-card:nth-child(3){animation-delay:0.15s;}.kpi-card:nth-child(4){animation-delay:0.2s;}
+.kpi-card:nth-child(5){animation-delay:0.25s;}
+</style>
+</head>
+<body>
+
+<div class="sidebar-overlay" id="overlay" onclick="toggleSidebar()"></div>
+<div class="mobile-topbar">
+  <div style="display:flex;align-items:center;gap:10px;">
+    <div class="logo-icon">A</div>
+    <div>
+      <div class="logo-text">Data Analytics</div>
+      <div class="logo-sub">Dashboard</div>
+    </div>
+  </div>
+  <button class="hamburger" id="hamburger" onclick="toggleSidebar()">
+    <span></span><span></span><span></span>
+  </button>
+</div>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="logo">
+      <div class="logo-icon">A</div>
+      <div>
+        <div class="logo-text">Data Analytics</div>
+        <div class="logo-sub">Dashboard</div>
+      </div>
+    </div>
+    <div class="nav-label">Analytics</div>
+    <button class="nav-item active" data-section="overview" onclick="navTo(this,'overview')">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="8" width="3" height="7" rx="1"/><rect x="6" y="4" width="3" height="11" rx="1"/><rect x="11" y="1" width="3" height="14" rx="1"/></svg>
+      <span class="nav-label-text">Overview</span>
+    </button>
+    <button class="nav-item" data-section="segments" onclick="navTo(this,'segments')">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M8 4v4l3 2" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+      <span class="nav-label-text">Segments</span>
+    </button>
+    <button class="nav-item" data-section="trends" onclick="navTo(this,'trends')">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M2 12 L5 8 L8 10 L11 5 L14 7" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
+      <span class="nav-label-text">Trends</span>
+    </button>
+    <div class="nav-label">Reports</div>
+    <button class="nav-item" onclick="downloadReport()">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor"><rect x="2" y="1" width="9" height="14" rx="1.5" stroke="currentColor" stroke-width="1.5" fill="none"/><line x1="5" y1="5" x2="9" y2="5" stroke="currentColor" stroke-width="1"/><line x1="5" y1="8" x2="9" y2="8" stroke="currentColor" stroke-width="1"/><line x1="5" y1="11" x2="7" y2="11" stroke="currentColor" stroke-width="1"/><polygon points="10,9 14,9 14,14 10,14" fill="currentColor" opacity="0.5"/><line x1="12" y1="7" x2="12" y2="9" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span class="nav-label-text">Report</span>
+    </button>
+    <button class="toggle-btn" id="toggleBtn" onclick="toggleCollapse()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      <span class="nav-label-text">Collapse</span>
+    </button>
+    <div class="sidebar-footer">
+      Analysis by<br>
+      <span style="color:var(--text);font-weight:500;">Binit Robinson Kachhap</span>
+      <div style="margin-top:12px;display:flex;flex-direction:column;gap:7px;">
+        <a href="https://www.linkedin.com/in/binit-robinson-kachhap-808852380/" target="_blank" style="display:flex;align-items:center;gap:7px;color:var(--muted);text-decoration:none;font-size:11px;" onmouseover="this.style.color='#4f8ef7'" onmouseout="this.style.color=''">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+          LinkedIn
+        </a>
+        <a href="https://github.com/BinitRobinson" target="_blank" style="display:flex;align-items:center;gap:7px;color:var(--muted);text-decoration:none;font-size:11px;" onmouseover="this.style.color='#4f8ef7'" onmouseout="this.style.color=''">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+          GitHub
+        </a>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Customer Segmentation</div>
+        <div class="page-sub">200 customers · 5 behavioural segments</div>
+      </div>
+      <div class="header-badges">
+        <span class="badge badge-blue" id="countBadge">5 Clusters</span>
+        <span class="badge badge-date">2025 Dataset</span>
+      </div>
+    </div>
+
+    <div id="sec-overview"></div>
+    <!-- FILTER BAR -->
+    <div class="filter-bar">
+      <span class="filter-label">Segment</span>
+      <button class="filter-btn active" data-type="seg" data-val="All" onclick="setFilter(this)">All</button>
+      <button class="filter-btn" data-type="seg" data-val="Budget Customers" onclick="setFilter(this)">Budget</button>
+      <button class="filter-btn" data-type="seg" data-val="Premium Customers" onclick="setFilter(this)">Premium</button>
+      <button class="filter-btn" data-type="seg" data-val="Impulsive Customers" onclick="setFilter(this)">Impulsive</button>
+      <button class="filter-btn" data-type="seg" data-val="Average Customers" onclick="setFilter(this)">Average</button>
+      <button class="filter-btn" data-type="seg" data-val="Conservative Customers" onclick="setFilter(this)">Conservative</button>
+      <span class="filter-sep">|</span>
+      <span class="filter-label">Gender</span>
+      <button class="filter-btn active" data-type="gender" data-val="All" onclick="setFilter(this)">All</button>
+      <button class="filter-btn" data-type="gender" data-val="Female" onclick="setFilter(this)">Female</button>
+      <button class="filter-btn" data-type="gender" data-val="Male" onclick="setFilter(this)">Male</button>
+    </div>
+
+    <!-- KPI CARDS -->
+    <div class="kpi-grid">
+      <div class="kpi-card c1"><div class="kpi-icon">👥</div><div class="kpi-label">Total Customers</div><div class="kpi-value" id="kTotal">200</div><div class="kpi-delta">Filtered dataset</div></div>
+      <div class="kpi-card c2"><div class="kpi-icon">💰</div><div class="kpi-label">Avg Annual Income</div><div class="kpi-value" id="kIncome">$60.6k</div><div class="kpi-delta">Across selection</div></div>
+      <div class="kpi-card c3"><div class="kpi-icon">🛒</div><div class="kpi-label">Avg Spending Score</div><div class="kpi-value" id="kSpend">50.2</div><div class="kpi-delta">Out of 100</div></div>
+      <div class="kpi-card c4"><div class="kpi-icon">⭐</div><div class="kpi-label">Avg Credit Score</div><div class="kpi-value" id="kCredit">743.7</div><div class="kpi-delta">Good credit range</div></div>
+      <div class="kpi-card c5"><div class="kpi-icon">🏅</div><div class="kpi-label">Avg Loyalty (yrs)</div><div class="kpi-value" id="kLoyalty">5.9</div><div class="kpi-delta">High retention</div></div>
+    </div>
+
+    <!-- INSIGHTS -->
+    <div class="insight-strip">
+      <div class="insight i1"><div class="insight-title" id="ins1t">Largest Segment: Budget Customers</div><div class="insight-body" id="ins1b">40.5% of all customers fall into the Budget segment with avg income $55.3k.</div></div>
+      <div class="insight i2"><div class="insight-title" id="ins2t">Highest Spenders: Premium Customers</div><div class="insight-body" id="ins2b">Premium segment shows highest spending score (82.1) with high income ($86.5k).</div></div>
+      <div class="insight i3"><div class="insight-title" id="ins3t">Impulsive: High Income, Low Spend</div><div class="insight-body" id="ins3b">Impulsive customers earn the most ($88.2k) but spend least — prime engagement targets.</div></div>
+    </div>
+
+    <!-- ROW 1 -->
+    <div class="row row-2-1">
+      <div class="card">
+        <div class="card-header"><div class="card-title">Income vs Spending Score</div><span class="card-tag">Scatter</span></div>
+        <div class="legend">
+          <span class="leg"><span class="leg-dot" style="background:var(--c1)"></span>Budget</span>
+          <span class="leg"><span class="leg-dot" style="background:var(--c2)"></span>Premium</span>
+          <span class="leg"><span class="leg-dot" style="background:var(--c3)"></span>Impulsive</span>
+          <span class="leg"><span class="leg-dot" style="background:var(--c4)"></span>Average</span>
+          <span class="leg"><span class="leg-dot" style="background:var(--c5)"></span>Conservative</span>
+        </div>
+        <div style="position:relative;height:240px;"><canvas id="scatterChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Segment Distribution</div><span class="card-tag">Donut</span></div>
+        <div style="position:relative;height:260px;"><canvas id="donutChart"></canvas></div>
+      </div>
+    </div>
+
+    <div id="sec-segments"></div>
+    <!-- ROW 2 -->
+    <div class="row row-3">
+      <div class="card">
+        <div class="card-header"><div class="card-title">Avg Income &amp; Spending</div><span class="card-tag">Bar</span></div>
+        <div class="legend">
+          <span class="leg"><span class="leg-dot" style="background:var(--c1)"></span>Income (k$)</span>
+          <span class="leg"><span class="leg-dot" style="background:var(--c2)"></span>Spending</span>
+        </div>
+        <div style="position:relative;height:180px;"><canvas id="barChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Gender Split</div><span class="card-tag">Stacked Bar</span></div>
+        <div class="legend">
+          <span class="leg"><span class="leg-dot" style="background:var(--c4)"></span>Female</span>
+          <span class="leg"><span class="leg-dot" style="background:var(--c1)"></span>Male</span>
+        </div>
+        <div style="position:relative;height:180px;"><canvas id="genderChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Preferred Category</div><span class="card-tag">Donut</span></div>
+        <div style="position:relative;height:180px;"><canvas id="catChart"></canvas></div>
+      </div>
+    </div>
+
+    <div id="sec-trends"></div>
+    <!-- ROW 3 -->
+    <div class="row row-2">
+      <div class="card">
+        <div class="card-header"><div class="card-title">Age Group Distribution</div><span class="card-tag">Stacked Bar</span></div>
+        <div style="position:relative;height:200px;"><canvas id="ageChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Segment Breakdown</div><span class="card-tag">Table</span></div>
+        <div class="seg-table-wrap">
+          <table class="seg-table">
+            <thead><tr>
+              <th>Segment</th><th>Count</th><th>Avg Income</th><th>Avg Spend</th><th style="text-align:right">Share</th>
+            </tr></thead>
+            <tbody id="segTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+// ===== FULL DATASET =====
+const RAW_DATA = [{"Gender": "Male", "Age": 19, "Annual Income (k$)": 15, "Spending Score (1-100)": 39, "Age Group": "18-25", "Estimated Savings (k$)": 11.1, "Credit Score": 456, "Loyalty Years": 3, "Preferred Category": "Budget", "Cluster": 4, "Customer Segment": "Average Customers"}, {"Gender": "Male", "Age": 21, "Annual Income (k$)": 15, "Spending Score (1-100)": 81, "Age Group": "18-25", "Estimated Savings (k$)": 6.9, "Credit Score": 300, "Loyalty Years": 6, "Preferred Category": "Luxury", "Cluster": 2, "Customer Segment": "Conservative Customers"}, {"Gender": "Female", "Age": 20, "Annual Income (k$)": 16, "Spending Score (1-100)": 6, "Age Group": "18-25", "Estimated Savings (k$)": 15.36, "Credit Score": 594, "Loyalty Years": 2, "Preferred Category": "Budget", "Cluster": 4, "Customer Segment": "Average Customers"}, {"Gender": "Female", "Age": 23, "Annual Income (k$)": 16, "Spending Score (1-100)": 77, "Age Group": "18-25", "Estimated Savings (k$)": 7.79, "Credit Score": 300, "Loyalty Years": 6, "Preferred Category": "Luxury", "Cluster": 2, "Customer Segment": "Conservative Customers"}, {"Gender": "Female", "Age": 31, "Annual Income (k$)": 17, "Spending Score (1-100)": 40, "Age Group": "26-35", "Estimated Savings (k$)": 12.47, "Credit Score": 480, "Loyalty Years": 5, "Preferred Category": "Budget", "Cluster": 4, "Customer Segment": "Average Customers"}, {"Gender": "Female", "Age": 22, "Annual Income (k$)": 17, "Spending Score (1-100)": 76, "Age Group": "18-25", "Estimated Savings (k$)": 8.39, "Credit Score": 300, "Loyalty Years": 6, "Preferred Category": "Luxury", "Cluster": 2, "Customer Segment": "Conservative Customers"}, {"Gender": "Female", "Age": 35, "Annual Income (k$)": 18, "Spending Score (1-100)": 6, "Age Group": "26-35", "Estimated Savings (k$)": 17.28, "Credit Score": 682, "Loyalty Years": 3, "Preferred Category": "Budget", "Cluster": 4, "Customer Segment": "Average Customers"}, {"Gender": "Female", "Age": 23, "Annual Income (k$)": 18, "Spending Score (1-100)": 94, "Age Group": "18-25", "Estimated Savings (k$)": 6.72, "Credit Score": 300, "Loyalty Years": 7, "Preferred Category": "Luxury", "Cluster": 2, "Customer Segment": "Conservative Customers"}, {"Gender": "Male", "Age": 64, "Annual Income (k$)": 19, "Spending Score (1-100)": 3, "Age Group": "51-65", "Estimated Savings (k$)": 18.62, "Credit Score": 699, "Loyalty Years": 6, "Preferred Category": "Budget", "Cluster": 4, "Customer Segment": "Average Customers"}, {"Gender": "Female", "Age": 30, "Annual Income (k$)": 19, "Spending Score (1-100)": 72, "Age Group": "26-35", "Estimated Savings (k$)": 9.88, "Credit Score": 354, "Loyalty Years": 6, "Preferred Category": "Luxury", "Cluster": 2, "Customer Segment": "Conservative Customers"}, {"Gender": "Male", "Age": 67, "Annual Income (k$)": 19, "Spending Score (1-100)": 14, "Age Group": "65+", "Estimated Savings (k$)": 17.23, "Credit Score": 657, "Loyalty Years": 7, "Preferred Category": "Budget", "Cluster": 4, "Customer Segment": "Average Customers"}, {"Gender": "Female", "Age": 35, "Annual Income (k$)": 19, "Spending Score (1-100)": 99, "Age Group": "26-35", "Estimated Savings (k$)": 6.46, "Credit Score": 300, "Loyalty Years": 8, "Preferred Category": "Luxury", "Cluster": 2, "Customer Segment": "Conservative Customers"}, {"Gender": "Female", "Age": 58, "Annual Income (k$)": 20, "Spending Score (1-100)": 15, "Age Group": "51-65", "Estimated Savings (k$)": 18.0, "Credit Score": 598, "Loyalty Years": 6, "Preferred Category": "Budget", "Cluster": 4, "Customer Segment": "Average Customers"}, {"Gender": "Female", "Age": 24, "Annual Income (k$)": 20, "Spending Score (1-100)": 77, "Age Group": "18-25", "Estimated Savings (k$)": 9.73, "Credit Score": 300, "Loyalty Years": 6, "Preferred Category": "Luxury", "Cluster": 2, "Customer Segment": "Conservative Customers"}, {"Gender": "Male", "Age": 37, "Annual Income (k$)": 20, "Spending Score (1-100)": 13, "Age Group": "36-50", "Estimated Savings (k$)": 18.27, "Credit Score": 606, "Loyalty Years": 4, "Preferred Category": "Budget", "Cluster": 4, "Customer Segment": "Average Customers"}, {"Gender": "Male", "Age": 22, "Annual Income (k$)": 20, "Spending Score (1-100)": 79, "Age Group": "18-25", "Estimated Savings (k$)": 9.47, "Credit Score": 307, "Loyalty Years": 6, "Preferred Category": "Luxury", "Cluster": 2, "Customer Segment": "Conservative Customers"}, {"Gender": "Female", "Age": 35, "Annual Income (k$)": 21, "Spending Score (1-100)": 35, "Age Group": "26-35", "Estimated Savings (k$)": 16.1, "Credit Score": 486, "Loyalty Years": 5, "Preferred Category": "Budget", "Cluster": 4, "Customer Segment": "Average Customers"}, {"Gender": "Male", "Age": 20, "Annual Income (k$)": 21, "Spending Score (1-100)": 66, "Age Group": "18-25", "Estimated Savings (k$)": 11.76, "Credit Score": 417, "Loyalty Years": 5, "Preferred Category": "Budget", "Cluster": 2, "Customer Segment": "Conservative Customers"}, {"Gender": "Male", "Age": 52, "Annual Income (k$)": 23, "Spending Score (1-100)": 29, "Age Group": "51-65", "Estimated Savings (k$)": 18.55, "Credit Score": 564, "Loyalty Years": 6, "Preferred Category": "Budget", "Cluster": 4, "Customer Segment": "Average Customers"}, {"Gender": "Female", "Age": 35, "Annual Income (k$)": 23, "Spending Score (1-100)": 98, "Age Group": "26-35", "Estimated Savings (k$)": 7.97, "Credit Score": 300, "Loyalty Years": 8, "Preferred Category": "Luxury", "Cluster": 2, "Customer Segment": "Conservative Customers"}, {"Gender": "Male", "Age": 35, "Annual Income (k$)": 24, "Spending Score (1-100)": 35, "Age Group": "26-35", "Estimated Savings (k$)": 18.4, "Credit Score": 516, "Loyalty Years": 5, "Preferred Category": "Budget", "Cluster": 4, "Customer Segment": "Average Customers"}, {"Gender": "Male", "Age": 25, "Annual Income (k$)": 24, "Spending Score (1-100)": 73, "Age Group": "18-25", "Estimated Savings (k$)": 12.32, "Credit Score": 388, "Loyalty Years": 6, "Preferred Category": "Luxury", "Cluster": 2, "Customer Segment": "Conservative Customers"}, {"Gender": "Female", "Age": 46, "Annual Income (k$)": 25, "Spending Score (1-100)": 5, "Age Group": "36-50", "Estimated Savings (k$)": 24.17, "Credit Score": 734, "Loyalty Years": 4, "Preferred Category": "Budget", "Cluster": 4, "Customer Segment": "Average Customers"}, {"Gender": "Male", "Age": 31, "Annual Income (k$)": 25, "Spending Score (1-100)": 73, "Age Group": "26-35", "Estimated Savings (k$)": 12.83, "Credit Score": 355, "Loyalty Years": 6, "Preferred Category": "Luxury", "Cluster": 2, "Customer Segment": "Conservative Customers"}, {"Gender": "Female", "Age": 54, "Annual Income (k$)": 28, "Spending Score (1-100)": 14, "Age Group": "51-65", "Estimated Savings (k$)": 25.39, "Credit Score": 692, "Loyalty Years": 6, "Preferred Category": "Budget", "Cluster": 4, "Customer Segment": "Average Customers"}, {"Gender": "Male", "Age": 29, "Annual Income (k$)": 28, "Spending Score (1-100)": 82, "Age Group": "26-35", "Estimated Savings (k$)": 12.69, "Credit Score": 395, "Loyalty Years": 7, "Preferred Category": "Luxury", "Cluster": 2, "Customer Segment": "Conservative Customers"}, {"Gender": "Female", "Age": 45, "Annual Income (k$)": 28, "Spending Score (1-100)": 32, "Age Group": "36-50", "Estimated Savings (k$)": 22.03, "Credit Score": 627, "Loyalty Years": 6, "Preferred Category": "Budget", "Cluster": 4, "Customer Segment": "Average Customers"}, {"Gender": "Male", "Age": 35, "Annual Income (k$)": 28, "Spending Score (1-100)": 61, "Age Group": "26-35", "Estimated Savings (k$)": 16.61, "Credit Score": 446, "Loyalty Years": 6, "Preferred Category": "Budget", "Cluster": 2, "Customer Segment": "Conservative Customers"}, {"Gender": "Female", "Age": 40, "Annual Income (k$)": 29, "Spending Score (1-100)": 31, "Age Group": "36-50", "Estimated Savings (k$)": 23.01, "Credit Score": 673, "Loyalty Years": 5, "Preferred Category": "Budget", "Cluster": 4, "Customer Segment": "Average Customers"}, {"Gender": "Female", "Age": 23, "Annual Income (k$)": 29, "Spending Score (1-100)": 87, "Age Group": "18-25", "Estimated Savings (k$)": 12.18, "Credit Score": 353, "Loyalty Years": 6, "Preferred Category": "Luxury", "Cluster": 2, "Customer Segment": "Conservative Customers"}, {"Gender": "Male", "Age": 60, "Annual Income (k$)": 30, "Spending Score (1-100)": 4, "Age Group": "51-65", "Estimated Savings (k$)": 29.2, "Credit Score": 820, "Loyalty Years": 6, "Preferred Category": "Budget", "Cluster": 4, "Customer Segment": "Average Customers"}, {"Gender": "Female", "Age": 21, "Annual Income (k$)": 30, "Spending Score (1-100)": 73, "Age Group": "18-25", "Estimated Savings (k$)": 15.4, "Credit Score": 443, "Loyalty Years": 5, "Preferred Category": "Luxury", "Cluster": 2, "Customer Segment": "Conservative Customers"}, {"Gender": "Male", "Age": 53, "Annual Income (k$)": 33, "Spending Score (1-100)": 4, "Age Group": "51-65", "Estimated Savings (k$)": 32.12, "Credit Score": 801, "Loyalty Years": 5, "Preferred Category": "Budget", "Cluster": 4, "Customer Segment": "Average Customers"}, {"Gender": "Male", "Age": 18, "Annual Income (k$)": 33, "Spending Score (1-100)": 92, "Age Group": "Unknown", "Estimated Savings (k$)": 12.76, "Credit Score": 411, "Loyalty Years": 6, "Preferred Category": "Luxury", "Cluster": 2, "Customer Segment": "Conservative Customers"}, {"Gender": "Female", "Age": 49, "Annual Income (k$)": 33, "Spending Score (1-100)": 14, "Age Group": "36-50", "Estimated Savings (k$)": 29.92, "Credit Score": 769, "Loyalty Years": 5, "Preferred Category": "Budget", "Cluster": 4, "Customer Segment": "Average Customers"}, {"Gender": "Female", "Age": 21, "Annual Income (k$)": 33, "Spending Score (1-100)": 81, "Age Group": "18-25", "Estimated Savings (k$)": 15.18, "Credit Score": 454, "Loyalty Years": 6, "Preferred Category": "Luxury", "Cluster": 2, "Customer Segment": "Conservative Customers"}, {"Gender": "Female", "Age": 42, "Annual Income (k$)": 34, "Spending Score (1-100)": 17, "Age Group": "36-50", "Estimated Savings (k$)": 30.15, "Credit Score": 719, "Loyalty Years": 5, "Preferred Category": "Budget", "Cluster": 4, "Customer Segment": "Average Customers"}, {"Gender": "Female", "Age": 30, "Annual Income (k$)": 34, "Spending Score (1-100)": 73, "Age Group": "26-35", "Estimated Savings (k$)": 17.45, "Credit Score": 486, "Loyalty Years": 6, "Preferred Category": "Luxury", "Cluster": 2, "Customer Segment": "Conservative Customers"}, {"Gender": "Female", "Age": 36, "Annual Income (k$)": 37, "Spending Score (1-100)": 26, "Age Group": "36-50", "Estimated Savings (k$)": 30.59, "Credit Score": 751, "Loyalty Years": 4, "Preferred Category": "Budget", "Cluster": 4, "Customer Segment": "Average Customers"}, {"Gender": "Female", "Age": 20, "Annual Income (k$)": 37, "Spending Score (1-100)": 75, "Age Group": "18-25", "Estimated Savings (k$)": 18.5, "Credit Score": 491, "Loyalty Years": 5, "Preferred Category": "Luxury", "Cluster": 2, "Customer Segment": "Conservative Customers"}, {"Gender": "Female", "Age": 65, "Annual Income (k$)": 38, "Spending Score (1-100)": 35, "Age Group": "51-65", "Estimated Savings (k$)": 29.13, "Credit Score": 716, "Loyalty Years": 8, "Preferred Category": "Budget", "Cluster": 4, "Customer Segment": "Average Customers"}, {"Gender": "Male", "Age": 24, "Annual Income (k$)": 38, "Spending Score (1-100)": 92, "Age Group": "18-25", "Estimated Savings (k$)": 14.69, "Credit Score": 420, "Loyalty Years": 7, "Preferred Category": "Luxury", "Cluster": 2, "Customer Segment": "Conservative Customers"}, {"Gender": "Male", "Age": 48, "Annual Income (k$)": 39, "Spending Score (1-100)": 36, "Age Group": "36-50", "Estimated Savings (k$)": 29.64, "Credit Score": 714, "Loyalty Years": 6, "Preferred Category": "Budget", "Cluster": 4, "Customer Segment": "Average Customers"}, {"Gender": "Female", "Age": 31, "Annual Income (k$)": 39, "Spending Score (1-100)": 61, "Age Group": "26-35", "Estimated Savings (k$)": 23.14, "Credit Score": 598, "Loyalty Years": 6, "Preferred Category": "Budget", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 49, "Annual Income (k$)": 39, "Spending Score (1-100)": 28, "Age Group": "36-50", "Estimated Savings (k$)": 31.72, "Credit Score": 702, "Loyalty Years": 6, "Preferred Category": "Budget", "Cluster": 4, "Customer Segment": "Average Customers"}, {"Gender": "Female", "Age": 24, "Annual Income (k$)": 39, "Spending Score (1-100)": 65, "Age Group": "18-25", "Estimated Savings (k$)": 22.1, "Credit Score": 565, "Loyalty Years": 5, "Preferred Category": "Budget", "Cluster": 2, "Customer Segment": "Conservative Customers"}, {"Gender": "Female", "Age": 50, "Annual Income (k$)": 40, "Spending Score (1-100)": 55, "Age Group": "36-50", "Estimated Savings (k$)": 25.33, "Credit Score": 581, "Loyalty Years": 7, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 27, "Annual Income (k$)": 40, "Spending Score (1-100)": 47, "Age Group": "26-35", "Estimated Savings (k$)": 27.47, "Credit Score": 635, "Loyalty Years": 5, "Preferred Category": "Fashion", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 29, "Annual Income (k$)": 40, "Spending Score (1-100)": 42, "Age Group": "26-35", "Estimated Savings (k$)": 28.8, "Credit Score": 712, "Loyalty Years": 5, "Preferred Category": "Fashion", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 31, "Annual Income (k$)": 40, "Spending Score (1-100)": 42, "Age Group": "26-35", "Estimated Savings (k$)": 28.8, "Credit Score": 678, "Loyalty Years": 5, "Preferred Category": "Fashion", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 49, "Annual Income (k$)": 42, "Spending Score (1-100)": 52, "Age Group": "36-50", "Estimated Savings (k$)": 27.44, "Credit Score": 627, "Loyalty Years": 7, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 33, "Annual Income (k$)": 42, "Spending Score (1-100)": 60, "Age Group": "26-35", "Estimated Savings (k$)": 25.2, "Credit Score": 573, "Loyalty Years": 6, "Preferred Category": "Fashion", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 31, "Annual Income (k$)": 43, "Spending Score (1-100)": 54, "Age Group": "26-35", "Estimated Savings (k$)": 27.52, "Credit Score": 698, "Loyalty Years": 5, "Preferred Category": "Fashion", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 59, "Annual Income (k$)": 43, "Spending Score (1-100)": 60, "Age Group": "51-65", "Estimated Savings (k$)": 25.8, "Credit Score": 639, "Loyalty Years": 8, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 50, "Annual Income (k$)": 43, "Spending Score (1-100)": 45, "Age Group": "36-50", "Estimated Savings (k$)": 30.1, "Credit Score": 668, "Loyalty Years": 7, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 47, "Annual Income (k$)": 43, "Spending Score (1-100)": 41, "Age Group": "36-50", "Estimated Savings (k$)": 31.25, "Credit Score": 683, "Loyalty Years": 6, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 51, "Annual Income (k$)": 44, "Spending Score (1-100)": 50, "Age Group": "51-65", "Estimated Savings (k$)": 29.33, "Credit Score": 729, "Loyalty Years": 7, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 69, "Annual Income (k$)": 44, "Spending Score (1-100)": 46, "Age Group": "65+", "Estimated Savings (k$)": 30.51, "Credit Score": 712, "Loyalty Years": 9, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 27, "Annual Income (k$)": 46, "Spending Score (1-100)": 51, "Age Group": "26-35", "Estimated Savings (k$)": 30.36, "Credit Score": 656, "Loyalty Years": 5, "Preferred Category": "Fashion", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 53, "Annual Income (k$)": 46, "Spending Score (1-100)": 46, "Age Group": "51-65", "Estimated Savings (k$)": 31.89, "Credit Score": 763, "Loyalty Years": 7, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 70, "Annual Income (k$)": 46, "Spending Score (1-100)": 56, "Age Group": "65+", "Estimated Savings (k$)": 28.83, "Credit Score": 721, "Loyalty Years": 9, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 19, "Annual Income (k$)": 46, "Spending Score (1-100)": 55, "Age Group": "18-25", "Estimated Savings (k$)": 29.13, "Credit Score": 694, "Loyalty Years": 4, "Preferred Category": "Fashion", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 67, "Annual Income (k$)": 47, "Spending Score (1-100)": 52, "Age Group": "65+", "Estimated Savings (k$)": 30.71, "Credit Score": 730, "Loyalty Years": 9, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 54, "Annual Income (k$)": 47, "Spending Score (1-100)": 59, "Age Group": "51-65", "Estimated Savings (k$)": 28.51, "Credit Score": 668, "Loyalty Years": 8, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 63, "Annual Income (k$)": 48, "Spending Score (1-100)": 51, "Age Group": "51-65", "Estimated Savings (k$)": 31.68, "Credit Score": 682, "Loyalty Years": 8, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 18, "Annual Income (k$)": 48, "Spending Score (1-100)": 59, "Age Group": "Unknown", "Estimated Savings (k$)": 29.12, "Credit Score": 681, "Loyalty Years": 4, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 43, "Annual Income (k$)": 48, "Spending Score (1-100)": 50, "Age Group": "36-50", "Estimated Savings (k$)": 32.0, "Credit Score": 714, "Loyalty Years": 6, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 68, "Annual Income (k$)": 48, "Spending Score (1-100)": 48, "Age Group": "65+", "Estimated Savings (k$)": 32.64, "Credit Score": 767, "Loyalty Years": 9, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 19, "Annual Income (k$)": 48, "Spending Score (1-100)": 59, "Age Group": "18-25", "Estimated Savings (k$)": 29.12, "Credit Score": 715, "Loyalty Years": 4, "Preferred Category": "Fashion", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 32, "Annual Income (k$)": 48, "Spending Score (1-100)": 47, "Age Group": "26-35", "Estimated Savings (k$)": 32.96, "Credit Score": 730, "Loyalty Years": 5, "Preferred Category": "Fashion", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 70, "Annual Income (k$)": 49, "Spending Score (1-100)": 55, "Age Group": "65+", "Estimated Savings (k$)": 31.03, "Credit Score": 714, "Loyalty Years": 9, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 47, "Annual Income (k$)": 49, "Spending Score (1-100)": 42, "Age Group": "36-50", "Estimated Savings (k$)": 35.28, "Credit Score": 733, "Loyalty Years": 6, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 60, "Annual Income (k$)": 50, "Spending Score (1-100)": 49, "Age Group": "51-65", "Estimated Savings (k$)": 33.67, "Credit Score": 706, "Loyalty Years": 8, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 60, "Annual Income (k$)": 50, "Spending Score (1-100)": 56, "Age Group": "51-65", "Estimated Savings (k$)": 31.33, "Credit Score": 675, "Loyalty Years": 8, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 59, "Annual Income (k$)": 54, "Spending Score (1-100)": 47, "Age Group": "51-65", "Estimated Savings (k$)": 37.08, "Credit Score": 808, "Loyalty Years": 8, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 26, "Annual Income (k$)": 54, "Spending Score (1-100)": 54, "Age Group": "26-35", "Estimated Savings (k$)": 34.56, "Credit Score": 723, "Loyalty Years": 5, "Preferred Category": "Fashion", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 45, "Annual Income (k$)": 54, "Spending Score (1-100)": 53, "Age Group": "36-50", "Estimated Savings (k$)": 34.92, "Credit Score": 778, "Loyalty Years": 7, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 40, "Annual Income (k$)": 54, "Spending Score (1-100)": 48, "Age Group": "36-50", "Estimated Savings (k$)": 36.72, "Credit Score": 842, "Loyalty Years": 6, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 23, "Annual Income (k$)": 54, "Spending Score (1-100)": 52, "Age Group": "18-25", "Estimated Savings (k$)": 35.28, "Credit Score": 792, "Loyalty Years": 4, "Preferred Category": "Fashion", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 49, "Annual Income (k$)": 54, "Spending Score (1-100)": 42, "Age Group": "36-50", "Estimated Savings (k$)": 38.88, "Credit Score": 797, "Loyalty Years": 7, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 57, "Annual Income (k$)": 54, "Spending Score (1-100)": 51, "Age Group": "51-65", "Estimated Savings (k$)": 35.64, "Credit Score": 824, "Loyalty Years": 8, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 38, "Annual Income (k$)": 54, "Spending Score (1-100)": 55, "Age Group": "36-50", "Estimated Savings (k$)": 34.2, "Credit Score": 758, "Loyalty Years": 6, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 67, "Annual Income (k$)": 54, "Spending Score (1-100)": 41, "Age Group": "65+", "Estimated Savings (k$)": 39.24, "Credit Score": 818, "Loyalty Years": 8, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 46, "Annual Income (k$)": 54, "Spending Score (1-100)": 44, "Age Group": "36-50", "Estimated Savings (k$)": 38.16, "Credit Score": 843, "Loyalty Years": 6, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 21, "Annual Income (k$)": 54, "Spending Score (1-100)": 57, "Age Group": "18-25", "Estimated Savings (k$)": 33.48, "Credit Score": 766, "Loyalty Years": 4, "Preferred Category": "Fashion", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 48, "Annual Income (k$)": 54, "Spending Score (1-100)": 46, "Age Group": "36-50", "Estimated Savings (k$)": 37.44, "Credit Score": 850, "Loyalty Years": 7, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 55, "Annual Income (k$)": 57, "Spending Score (1-100)": 58, "Age Group": "51-65", "Estimated Savings (k$)": 34.96, "Credit Score": 743, "Loyalty Years": 8, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 22, "Annual Income (k$)": 57, "Spending Score (1-100)": 55, "Age Group": "18-25", "Estimated Savings (k$)": 36.1, "Credit Score": 839, "Loyalty Years": 4, "Preferred Category": "Fashion", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 34, "Annual Income (k$)": 58, "Spending Score (1-100)": 60, "Age Group": "26-35", "Estimated Savings (k$)": 34.8, "Credit Score": 777, "Loyalty Years": 6, "Preferred Category": "Fashion", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 50, "Annual Income (k$)": 58, "Spending Score (1-100)": 46, "Age Group": "36-50", "Estimated Savings (k$)": 40.21, "Credit Score": 814, "Loyalty Years": 7, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 68, "Annual Income (k$)": 59, "Spending Score (1-100)": 55, "Age Group": "65+", "Estimated Savings (k$)": 37.37, "Credit Score": 836, "Loyalty Years": 9, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 18, "Annual Income (k$)": 59, "Spending Score (1-100)": 41, "Age Group": "Unknown", "Estimated Savings (k$)": 42.87, "Credit Score": 850, "Loyalty Years": 3, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 48, "Annual Income (k$)": 60, "Spending Score (1-100)": 49, "Age Group": "36-50", "Estimated Savings (k$)": 40.4, "Credit Score": 850, "Loyalty Years": 7, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 40, "Annual Income (k$)": 60, "Spending Score (1-100)": 40, "Age Group": "36-50", "Estimated Savings (k$)": 44.0, "Credit Score": 850, "Loyalty Years": 6, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 32, "Annual Income (k$)": 60, "Spending Score (1-100)": 42, "Age Group": "26-35", "Estimated Savings (k$)": 43.2, "Credit Score": 850, "Loyalty Years": 5, "Preferred Category": "Fashion", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 24, "Annual Income (k$)": 60, "Spending Score (1-100)": 52, "Age Group": "18-25", "Estimated Savings (k$)": 39.2, "Credit Score": 850, "Loyalty Years": 5, "Preferred Category": "Fashion", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 47, "Annual Income (k$)": 60, "Spending Score (1-100)": 47, "Age Group": "36-50", "Estimated Savings (k$)": 41.2, "Credit Score": 850, "Loyalty Years": 7, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 27, "Annual Income (k$)": 60, "Spending Score (1-100)": 50, "Age Group": "26-35", "Estimated Savings (k$)": 40.0, "Credit Score": 850, "Loyalty Years": 5, "Preferred Category": "Fashion", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 48, "Annual Income (k$)": 61, "Spending Score (1-100)": 42, "Age Group": "36-50", "Estimated Savings (k$)": 43.92, "Credit Score": 850, "Loyalty Years": 6, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 20, "Annual Income (k$)": 61, "Spending Score (1-100)": 49, "Age Group": "18-25", "Estimated Savings (k$)": 41.07, "Credit Score": 838, "Loyalty Years": 4, "Preferred Category": "Fashion", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 23, "Annual Income (k$)": 62, "Spending Score (1-100)": 41, "Age Group": "18-25", "Estimated Savings (k$)": 45.05, "Credit Score": 850, "Loyalty Years": 4, "Preferred Category": "Fashion", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 49, "Annual Income (k$)": 62, "Spending Score (1-100)": 48, "Age Group": "36-50", "Estimated Savings (k$)": 42.16, "Credit Score": 850, "Loyalty Years": 7, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 67, "Annual Income (k$)": 62, "Spending Score (1-100)": 59, "Age Group": "65+", "Estimated Savings (k$)": 37.61, "Credit Score": 834, "Loyalty Years": 9, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 26, "Annual Income (k$)": 62, "Spending Score (1-100)": 55, "Age Group": "26-35", "Estimated Savings (k$)": 39.27, "Credit Score": 835, "Loyalty Years": 5, "Preferred Category": "Fashion", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 49, "Annual Income (k$)": 62, "Spending Score (1-100)": 56, "Age Group": "36-50", "Estimated Savings (k$)": 38.85, "Credit Score": 818, "Loyalty Years": 7, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 21, "Annual Income (k$)": 62, "Spending Score (1-100)": 42, "Age Group": "18-25", "Estimated Savings (k$)": 44.64, "Credit Score": 850, "Loyalty Years": 4, "Preferred Category": "Fashion", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 66, "Annual Income (k$)": 63, "Spending Score (1-100)": 50, "Age Group": "65+", "Estimated Savings (k$)": 42.0, "Credit Score": 850, "Loyalty Years": 9, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 54, "Annual Income (k$)": 63, "Spending Score (1-100)": 46, "Age Group": "51-65", "Estimated Savings (k$)": 43.68, "Credit Score": 850, "Loyalty Years": 7, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 68, "Annual Income (k$)": 63, "Spending Score (1-100)": 43, "Age Group": "65+", "Estimated Savings (k$)": 44.94, "Credit Score": 850, "Loyalty Years": 8, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 66, "Annual Income (k$)": 63, "Spending Score (1-100)": 48, "Age Group": "65+", "Estimated Savings (k$)": 42.84, "Credit Score": 850, "Loyalty Years": 9, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 65, "Annual Income (k$)": 63, "Spending Score (1-100)": 52, "Age Group": "51-65", "Estimated Savings (k$)": 41.16, "Credit Score": 828, "Loyalty Years": 9, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 19, "Annual Income (k$)": 63, "Spending Score (1-100)": 54, "Age Group": "18-25", "Estimated Savings (k$)": 40.32, "Credit Score": 850, "Loyalty Years": 4, "Preferred Category": "Fashion", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 38, "Annual Income (k$)": 64, "Spending Score (1-100)": 42, "Age Group": "36-50", "Estimated Savings (k$)": 46.08, "Credit Score": 850, "Loyalty Years": 5, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 19, "Annual Income (k$)": 64, "Spending Score (1-100)": 46, "Age Group": "18-25", "Estimated Savings (k$)": 44.37, "Credit Score": 850, "Loyalty Years": 4, "Preferred Category": "Fashion", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 18, "Annual Income (k$)": 65, "Spending Score (1-100)": 48, "Age Group": "Unknown", "Estimated Savings (k$)": 44.2, "Credit Score": 850, "Loyalty Years": 4, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 19, "Annual Income (k$)": 65, "Spending Score (1-100)": 50, "Age Group": "18-25", "Estimated Savings (k$)": 43.33, "Credit Score": 850, "Loyalty Years": 4, "Preferred Category": "Fashion", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 63, "Annual Income (k$)": 65, "Spending Score (1-100)": 43, "Age Group": "51-65", "Estimated Savings (k$)": 46.37, "Credit Score": 850, "Loyalty Years": 8, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 49, "Annual Income (k$)": 65, "Spending Score (1-100)": 59, "Age Group": "36-50", "Estimated Savings (k$)": 39.43, "Credit Score": 850, "Loyalty Years": 7, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 51, "Annual Income (k$)": 67, "Spending Score (1-100)": 43, "Age Group": "51-65", "Estimated Savings (k$)": 47.79, "Credit Score": 850, "Loyalty Years": 7, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 50, "Annual Income (k$)": 67, "Spending Score (1-100)": 57, "Age Group": "36-50", "Estimated Savings (k$)": 41.54, "Credit Score": 850, "Loyalty Years": 7, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 27, "Annual Income (k$)": 67, "Spending Score (1-100)": 56, "Age Group": "26-35", "Estimated Savings (k$)": 41.99, "Credit Score": 850, "Loyalty Years": 5, "Preferred Category": "Fashion", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 38, "Annual Income (k$)": 67, "Spending Score (1-100)": 40, "Age Group": "36-50", "Estimated Savings (k$)": 49.13, "Credit Score": 850, "Loyalty Years": 5, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 40, "Annual Income (k$)": 69, "Spending Score (1-100)": 58, "Age Group": "36-50", "Estimated Savings (k$)": 42.32, "Credit Score": 850, "Loyalty Years": 6, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 39, "Annual Income (k$)": 69, "Spending Score (1-100)": 91, "Age Group": "36-50", "Estimated Savings (k$)": 27.14, "Credit Score": 725, "Loyalty Years": 8, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Female", "Age": 23, "Annual Income (k$)": 70, "Spending Score (1-100)": 29, "Age Group": "18-25", "Estimated Savings (k$)": 56.47, "Credit Score": 850, "Loyalty Years": 3, "Preferred Category": "Fashion", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Female", "Age": 31, "Annual Income (k$)": 70, "Spending Score (1-100)": 77, "Age Group": "26-35", "Estimated Savings (k$)": 34.07, "Credit Score": 771, "Loyalty Years": 6, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Male", "Age": 43, "Annual Income (k$)": 71, "Spending Score (1-100)": 35, "Age Group": "36-50", "Estimated Savings (k$)": 54.43, "Credit Score": 850, "Loyalty Years": 6, "Preferred Category": "Electronics", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Male", "Age": 40, "Annual Income (k$)": 71, "Spending Score (1-100)": 95, "Age Group": "36-50", "Estimated Savings (k$)": 26.03, "Credit Score": 756, "Loyalty Years": 8, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Male", "Age": 59, "Annual Income (k$)": 71, "Spending Score (1-100)": 11, "Age Group": "51-65", "Estimated Savings (k$)": 65.79, "Credit Score": 850, "Loyalty Years": 6, "Preferred Category": "Electronics", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Male", "Age": 38, "Annual Income (k$)": 71, "Spending Score (1-100)": 75, "Age Group": "36-50", "Estimated Savings (k$)": 35.5, "Credit Score": 818, "Loyalty Years": 7, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Male", "Age": 47, "Annual Income (k$)": 71, "Spending Score (1-100)": 9, "Age Group": "36-50", "Estimated Savings (k$)": 66.74, "Credit Score": 850, "Loyalty Years": 5, "Preferred Category": "Electronics", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Male", "Age": 39, "Annual Income (k$)": 71, "Spending Score (1-100)": 75, "Age Group": "36-50", "Estimated Savings (k$)": 35.5, "Credit Score": 832, "Loyalty Years": 7, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Female", "Age": 25, "Annual Income (k$)": 72, "Spending Score (1-100)": 34, "Age Group": "18-25", "Estimated Savings (k$)": 55.68, "Credit Score": 850, "Loyalty Years": 4, "Preferred Category": "Fashion", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 31, "Annual Income (k$)": 72, "Spending Score (1-100)": 71, "Age Group": "26-35", "Estimated Savings (k$)": 37.92, "Credit Score": 850, "Loyalty Years": 6, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Male", "Age": 20, "Annual Income (k$)": 73, "Spending Score (1-100)": 5, "Age Group": "18-25", "Estimated Savings (k$)": 70.57, "Credit Score": 850, "Loyalty Years": 2, "Preferred Category": "Fashion", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Female", "Age": 29, "Annual Income (k$)": 73, "Spending Score (1-100)": 88, "Age Group": "26-35", "Estimated Savings (k$)": 30.17, "Credit Score": 776, "Loyalty Years": 7, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Female", "Age": 44, "Annual Income (k$)": 73, "Spending Score (1-100)": 7, "Age Group": "36-50", "Estimated Savings (k$)": 69.59, "Credit Score": 850, "Loyalty Years": 4, "Preferred Category": "Electronics", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Male", "Age": 32, "Annual Income (k$)": 73, "Spending Score (1-100)": 73, "Age Group": "26-35", "Estimated Savings (k$)": 37.47, "Credit Score": 850, "Loyalty Years": 6, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Male", "Age": 19, "Annual Income (k$)": 74, "Spending Score (1-100)": 10, "Age Group": "18-25", "Estimated Savings (k$)": 69.07, "Credit Score": 850, "Loyalty Years": 2, "Preferred Category": "Fashion", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Female", "Age": 35, "Annual Income (k$)": 74, "Spending Score (1-100)": 72, "Age Group": "26-35", "Estimated Savings (k$)": 38.48, "Credit Score": 850, "Loyalty Years": 7, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Female", "Age": 57, "Annual Income (k$)": 75, "Spending Score (1-100)": 5, "Age Group": "51-65", "Estimated Savings (k$)": 72.5, "Credit Score": 850, "Loyalty Years": 5, "Preferred Category": "Electronics", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Male", "Age": 32, "Annual Income (k$)": 75, "Spending Score (1-100)": 93, "Age Group": "26-35", "Estimated Savings (k$)": 28.5, "Credit Score": 799, "Loyalty Years": 7, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Female", "Age": 28, "Annual Income (k$)": 76, "Spending Score (1-100)": 40, "Age Group": "26-35", "Estimated Savings (k$)": 55.73, "Credit Score": 850, "Loyalty Years": 4, "Preferred Category": "Fashion", "Cluster": 0, "Customer Segment": "Budget Customers"}, {"Gender": "Female", "Age": 32, "Annual Income (k$)": 76, "Spending Score (1-100)": 87, "Age Group": "26-35", "Estimated Savings (k$)": 31.92, "Credit Score": 821, "Loyalty Years": 7, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Male", "Age": 25, "Annual Income (k$)": 77, "Spending Score (1-100)": 12, "Age Group": "18-25", "Estimated Savings (k$)": 70.84, "Credit Score": 850, "Loyalty Years": 3, "Preferred Category": "Fashion", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Male", "Age": 28, "Annual Income (k$)": 77, "Spending Score (1-100)": 97, "Age Group": "26-35", "Estimated Savings (k$)": 27.21, "Credit Score": 737, "Loyalty Years": 7, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Male", "Age": 48, "Annual Income (k$)": 77, "Spending Score (1-100)": 36, "Age Group": "36-50", "Estimated Savings (k$)": 58.52, "Credit Score": 850, "Loyalty Years": 6, "Preferred Category": "Electronics", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Female", "Age": 32, "Annual Income (k$)": 77, "Spending Score (1-100)": 74, "Age Group": "26-35", "Estimated Savings (k$)": 39.01, "Credit Score": 850, "Loyalty Years": 6, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Female", "Age": 34, "Annual Income (k$)": 78, "Spending Score (1-100)": 22, "Age Group": "26-35", "Estimated Savings (k$)": 66.56, "Credit Score": 850, "Loyalty Years": 4, "Preferred Category": "Fashion", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Male", "Age": 34, "Annual Income (k$)": 78, "Spending Score (1-100)": 90, "Age Group": "26-35", "Estimated Savings (k$)": 31.2, "Credit Score": 793, "Loyalty Years": 7, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Male", "Age": 43, "Annual Income (k$)": 78, "Spending Score (1-100)": 17, "Age Group": "36-50", "Estimated Savings (k$)": 69.16, "Credit Score": 850, "Loyalty Years": 5, "Preferred Category": "Electronics", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Male", "Age": 39, "Annual Income (k$)": 78, "Spending Score (1-100)": 88, "Age Group": "36-50", "Estimated Savings (k$)": 32.24, "Credit Score": 798, "Loyalty Years": 8, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Female", "Age": 44, "Annual Income (k$)": 78, "Spending Score (1-100)": 20, "Age Group": "36-50", "Estimated Savings (k$)": 67.6, "Credit Score": 850, "Loyalty Years": 5, "Preferred Category": "Electronics", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Female", "Age": 38, "Annual Income (k$)": 78, "Spending Score (1-100)": 76, "Age Group": "36-50", "Estimated Savings (k$)": 38.48, "Credit Score": 850, "Loyalty Years": 7, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Female", "Age": 47, "Annual Income (k$)": 78, "Spending Score (1-100)": 16, "Age Group": "36-50", "Estimated Savings (k$)": 69.68, "Credit Score": 850, "Loyalty Years": 5, "Preferred Category": "Electronics", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Female", "Age": 27, "Annual Income (k$)": 78, "Spending Score (1-100)": 89, "Age Group": "26-35", "Estimated Savings (k$)": 31.72, "Credit Score": 826, "Loyalty Years": 7, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Male", "Age": 37, "Annual Income (k$)": 78, "Spending Score (1-100)": 1, "Age Group": "36-50", "Estimated Savings (k$)": 77.48, "Credit Score": 850, "Loyalty Years": 3, "Preferred Category": "Electronics", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Female", "Age": 30, "Annual Income (k$)": 78, "Spending Score (1-100)": 78, "Age Group": "26-35", "Estimated Savings (k$)": 37.44, "Credit Score": 850, "Loyalty Years": 6, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Male", "Age": 34, "Annual Income (k$)": 78, "Spending Score (1-100)": 1, "Age Group": "26-35", "Estimated Savings (k$)": 77.48, "Credit Score": 850, "Loyalty Years": 3, "Preferred Category": "Fashion", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Female", "Age": 30, "Annual Income (k$)": 78, "Spending Score (1-100)": 73, "Age Group": "26-35", "Estimated Savings (k$)": 40.04, "Credit Score": 850, "Loyalty Years": 6, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Female", "Age": 56, "Annual Income (k$)": 79, "Spending Score (1-100)": 35, "Age Group": "51-65", "Estimated Savings (k$)": 60.57, "Credit Score": 850, "Loyalty Years": 7, "Preferred Category": "Electronics", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Female", "Age": 29, "Annual Income (k$)": 79, "Spending Score (1-100)": 83, "Age Group": "26-35", "Estimated Savings (k$)": 35.29, "Credit Score": 850, "Loyalty Years": 7, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Male", "Age": 19, "Annual Income (k$)": 81, "Spending Score (1-100)": 5, "Age Group": "18-25", "Estimated Savings (k$)": 78.3, "Credit Score": 850, "Loyalty Years": 2, "Preferred Category": "Fashion", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Female", "Age": 31, "Annual Income (k$)": 81, "Spending Score (1-100)": 93, "Age Group": "26-35", "Estimated Savings (k$)": 30.78, "Credit Score": 850, "Loyalty Years": 7, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Male", "Age": 50, "Annual Income (k$)": 85, "Spending Score (1-100)": 26, "Age Group": "36-50", "Estimated Savings (k$)": 70.27, "Credit Score": 850, "Loyalty Years": 6, "Preferred Category": "Electronics", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Female", "Age": 36, "Annual Income (k$)": 85, "Spending Score (1-100)": 75, "Age Group": "36-50", "Estimated Savings (k$)": 42.5, "Credit Score": 850, "Loyalty Years": 7, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Male", "Age": 42, "Annual Income (k$)": 86, "Spending Score (1-100)": 20, "Age Group": "36-50", "Estimated Savings (k$)": 74.53, "Credit Score": 850, "Loyalty Years": 5, "Preferred Category": "Electronics", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Female", "Age": 33, "Annual Income (k$)": 86, "Spending Score (1-100)": 95, "Age Group": "26-35", "Estimated Savings (k$)": 31.53, "Credit Score": 850, "Loyalty Years": 8, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Female", "Age": 36, "Annual Income (k$)": 87, "Spending Score (1-100)": 27, "Age Group": "36-50", "Estimated Savings (k$)": 71.34, "Credit Score": 850, "Loyalty Years": 4, "Preferred Category": "Electronics", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Male", "Age": 32, "Annual Income (k$)": 87, "Spending Score (1-100)": 63, "Age Group": "26-35", "Estimated Savings (k$)": 50.46, "Credit Score": 850, "Loyalty Years": 6, "Preferred Category": "Fashion", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Male", "Age": 40, "Annual Income (k$)": 87, "Spending Score (1-100)": 13, "Age Group": "36-50", "Estimated Savings (k$)": 79.46, "Credit Score": 850, "Loyalty Years": 4, "Preferred Category": "Electronics", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Male", "Age": 28, "Annual Income (k$)": 87, "Spending Score (1-100)": 75, "Age Group": "26-35", "Estimated Savings (k$)": 43.5, "Credit Score": 850, "Loyalty Years": 6, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Male", "Age": 36, "Annual Income (k$)": 87, "Spending Score (1-100)": 10, "Age Group": "36-50", "Estimated Savings (k$)": 81.2, "Credit Score": 850, "Loyalty Years": 4, "Preferred Category": "Electronics", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Male", "Age": 36, "Annual Income (k$)": 87, "Spending Score (1-100)": 92, "Age Group": "36-50", "Estimated Savings (k$)": 33.64, "Credit Score": 850, "Loyalty Years": 8, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Female", "Age": 52, "Annual Income (k$)": 88, "Spending Score (1-100)": 13, "Age Group": "51-65", "Estimated Savings (k$)": 80.37, "Credit Score": 850, "Loyalty Years": 5, "Preferred Category": "Electronics", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Female", "Age": 30, "Annual Income (k$)": 88, "Spending Score (1-100)": 86, "Age Group": "26-35", "Estimated Savings (k$)": 37.55, "Credit Score": 850, "Loyalty Years": 7, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Male", "Age": 58, "Annual Income (k$)": 88, "Spending Score (1-100)": 15, "Age Group": "51-65", "Estimated Savings (k$)": 79.2, "Credit Score": 850, "Loyalty Years": 6, "Preferred Category": "Electronics", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Male", "Age": 27, "Annual Income (k$)": 88, "Spending Score (1-100)": 69, "Age Group": "26-35", "Estimated Savings (k$)": 47.52, "Credit Score": 850, "Loyalty Years": 6, "Preferred Category": "Fashion", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Male", "Age": 59, "Annual Income (k$)": 93, "Spending Score (1-100)": 14, "Age Group": "51-65", "Estimated Savings (k$)": 84.32, "Credit Score": 850, "Loyalty Years": 6, "Preferred Category": "Electronics", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Male", "Age": 35, "Annual Income (k$)": 93, "Spending Score (1-100)": 90, "Age Group": "26-35", "Estimated Savings (k$)": 37.2, "Credit Score": 850, "Loyalty Years": 8, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Female", "Age": 37, "Annual Income (k$)": 97, "Spending Score (1-100)": 32, "Age Group": "36-50", "Estimated Savings (k$)": 76.31, "Credit Score": 850, "Loyalty Years": 5, "Preferred Category": "Electronics", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Female", "Age": 32, "Annual Income (k$)": 97, "Spending Score (1-100)": 86, "Age Group": "26-35", "Estimated Savings (k$)": 41.39, "Credit Score": 850, "Loyalty Years": 7, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Male", "Age": 46, "Annual Income (k$)": 98, "Spending Score (1-100)": 15, "Age Group": "36-50", "Estimated Savings (k$)": 88.2, "Credit Score": 850, "Loyalty Years": 5, "Preferred Category": "Electronics", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Female", "Age": 29, "Annual Income (k$)": 98, "Spending Score (1-100)": 88, "Age Group": "26-35", "Estimated Savings (k$)": 40.51, "Credit Score": 850, "Loyalty Years": 7, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Female", "Age": 41, "Annual Income (k$)": 99, "Spending Score (1-100)": 39, "Age Group": "36-50", "Estimated Savings (k$)": 73.26, "Credit Score": 850, "Loyalty Years": 6, "Preferred Category": "Electronics", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Male", "Age": 30, "Annual Income (k$)": 99, "Spending Score (1-100)": 97, "Age Group": "26-35", "Estimated Savings (k$)": 34.98, "Credit Score": 850, "Loyalty Years": 7, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Female", "Age": 54, "Annual Income (k$)": 101, "Spending Score (1-100)": 24, "Age Group": "51-65", "Estimated Savings (k$)": 84.84, "Credit Score": 850, "Loyalty Years": 6, "Preferred Category": "Electronics", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Male", "Age": 28, "Annual Income (k$)": 101, "Spending Score (1-100)": 68, "Age Group": "26-35", "Estimated Savings (k$)": 55.21, "Credit Score": 850, "Loyalty Years": 6, "Preferred Category": "Fashion", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Female", "Age": 41, "Annual Income (k$)": 103, "Spending Score (1-100)": 17, "Age Group": "36-50", "Estimated Savings (k$)": 91.33, "Credit Score": 850, "Loyalty Years": 4, "Preferred Category": "Electronics", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Female", "Age": 36, "Annual Income (k$)": 103, "Spending Score (1-100)": 85, "Age Group": "36-50", "Estimated Savings (k$)": 44.63, "Credit Score": 850, "Loyalty Years": 7, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Female", "Age": 34, "Annual Income (k$)": 103, "Spending Score (1-100)": 23, "Age Group": "26-35", "Estimated Savings (k$)": 87.21, "Credit Score": 850, "Loyalty Years": 4, "Preferred Category": "Fashion", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Female", "Age": 32, "Annual Income (k$)": 103, "Spending Score (1-100)": 69, "Age Group": "26-35", "Estimated Savings (k$)": 55.62, "Credit Score": 850, "Loyalty Years": 6, "Preferred Category": "Fashion", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Male", "Age": 33, "Annual Income (k$)": 113, "Spending Score (1-100)": 8, "Age Group": "26-35", "Estimated Savings (k$)": 106.97, "Credit Score": 850, "Loyalty Years": 3, "Preferred Category": "Fashion", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Female", "Age": 38, "Annual Income (k$)": 113, "Spending Score (1-100)": 91, "Age Group": "36-50", "Estimated Savings (k$)": 44.45, "Credit Score": 850, "Loyalty Years": 8, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Female", "Age": 47, "Annual Income (k$)": 120, "Spending Score (1-100)": 16, "Age Group": "36-50", "Estimated Savings (k$)": 107.2, "Credit Score": 850, "Loyalty Years": 5, "Preferred Category": "Electronics", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Female", "Age": 35, "Annual Income (k$)": 120, "Spending Score (1-100)": 79, "Age Group": "26-35", "Estimated Savings (k$)": 56.8, "Credit Score": 850, "Loyalty Years": 7, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Female", "Age": 45, "Annual Income (k$)": 126, "Spending Score (1-100)": 28, "Age Group": "36-50", "Estimated Savings (k$)": 102.48, "Credit Score": 850, "Loyalty Years": 5, "Preferred Category": "Electronics", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Male", "Age": 32, "Annual Income (k$)": 126, "Spending Score (1-100)": 74, "Age Group": "26-35", "Estimated Savings (k$)": 63.84, "Credit Score": 850, "Loyalty Years": 6, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}, {"Gender": "Male", "Age": 32, "Annual Income (k$)": 137, "Spending Score (1-100)": 18, "Age Group": "26-35", "Estimated Savings (k$)": 120.56, "Credit Score": 850, "Loyalty Years": 4, "Preferred Category": "Fashion", "Cluster": 3, "Customer Segment": "Impulsive Customers"}, {"Gender": "Male", "Age": 30, "Annual Income (k$)": 137, "Spending Score (1-100)": 83, "Age Group": "26-35", "Estimated Savings (k$)": 61.19, "Credit Score": 850, "Loyalty Years": 7, "Preferred Category": "Luxury", "Cluster": 1, "Customer Segment": "Premium Customers"}];
+
+const SEG_COLORS = {
+  "Budget Customers":       "#4f8ef7",
+  "Premium Customers":      "#2ec4a0",
+  "Impulsive Customers":    "#f4845f",
+  "Average Customers":      "#e05c8a",
+  "Conservative Customers": "#9b7fe8"
+};
+const SEGS = Object.keys(SEG_COLORS);
+const CATS = ["Electronics","Luxury","Fashion","Budget"];
+const AGE_GROUPS = ["18-25","26-35","36-50","51-65","65+","Unknown"];
+const gridColor = "rgba(255,255,255,0.06)";
+const tickColor = "#7c8299";
+Chart.defaults.color = tickColor;
+Chart.defaults.font = { family: "DM Sans, sans-serif", size: 11 };
+
+let activeFilters = { seg: "All", gender: "All" };
+
+// ===== FILTER LOGIC =====
+function getFiltered() {
+  return RAW_DATA.filter(d => {
+    const segOk = activeFilters.seg === "All" || d["Customer Segment"] === activeFilters.seg;
+    const genOk = activeFilters.gender === "All" || d["Gender"] === activeFilters.gender;
+    return segOk && genOk;
+  });
+}
+
+function setFilter(btn) {
+  const type = btn.dataset.type;
+  const val  = btn.dataset.val;
+  activeFilters[type] = val;
+  // deactivate sibling buttons of same type
+  document.querySelectorAll(".filter-btn[data-type='" + type + "']")
+    .forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  updateAll();
+}
+
+function avg(arr, key) {
+  if (!arr.length) return 0;
+  return arr.reduce((s,d) => s + (d[key]||0), 0) / arr.length;
+}
+
+// ===== UPDATE ALL =====
+function updateAll() {
+  const data = getFiltered();
+  updateKPIs(data);
+  updateInsights(data);
+  updateScatter(data);
+  updateDonut(data);
+  updateBar(data);
+  updateGender(data);
+  updateCat(data);
+  updateAge(data);
+  updateTable(data);
+}
+
+// ===== KPIs =====
+function updateKPIs(data) {
+  document.getElementById("kTotal").textContent = data.length;
+  document.getElementById("kIncome").textContent = "$" + avg(data,"Annual Income (k$)").toFixed(1) + "k";
+  document.getElementById("kSpend").textContent = avg(data,"Spending Score (1-100)").toFixed(1);
+  document.getElementById("kCredit").textContent = avg(data,"Credit Score").toFixed(0);
+  document.getElementById("kLoyalty").textContent = avg(data,"Loyalty Years").toFixed(1);
+  document.getElementById("countBadge").textContent = data.length + " Customers";
+}
+
+// ===== INSIGHTS =====
+function updateInsights(data) {
+  if (!data.length) return;
+  // top segment by count
+  const segCounts = {};
+  SEGS.forEach(s => segCounts[s] = 0);
+  data.forEach(d => segCounts[d["Customer Segment"]] = (segCounts[d["Customer Segment"]]||0)+1);
+  const topSeg = Object.entries(segCounts).sort((a,b)=>b[1]-a[1])[0];
+  const pct = ((topSeg[1]/data.length)*100).toFixed(1);
+  document.getElementById("ins1t").textContent = "Largest: " + topSeg[0].replace(" Customers","");
+  document.getElementById("ins1b").textContent = pct + "% of filtered customers (" + topSeg[1] + " total).";
+  // avg income & spend
+  document.getElementById("ins2t").textContent = "Avg Income: $" + avg(data,"Annual Income (k$)").toFixed(1) + "k";
+  document.getElementById("ins2b").textContent = "Avg spending score across selection: " + avg(data,"Spending Score (1-100)").toFixed(1) + " / 100.";
+  // gender
+  const fem = data.filter(d=>d.Gender==="Female").length;
+  const male = data.filter(d=>d.Gender==="Male").length;
+  document.getElementById("ins3t").textContent = "Gender: " + fem + " Female · " + male + " Male";
+  document.getElementById("ins3b").textContent = "Female: " + ((fem/data.length)*100).toFixed(1) + "% · Male: " + ((male/data.length)*100).toFixed(1) + "%.";
+}
+
+// ===== CHARTS =====
+const charts = {};
+
+function makeOrUpdate(id, config) {
+  if (charts[id]) {
+    charts[id].data = config.data;
+    if (config.options) charts[id].options = config.options;
+    charts[id].update("active");
+  } else {
+    charts[id] = new Chart(document.getElementById(id), config);
+  }
+}
+
+// SCATTER
+function updateScatter(data) {
+  const datasets = SEGS.map(seg => ({
+    label: seg.replace(" Customers",""),
+    backgroundColor: SEG_COLORS[seg] + "99",
+    pointRadius: 5, pointHoverRadius: 7,
+    data: data.filter(d => d["Customer Segment"] === seg)
+              .map(d => ({ x: d["Annual Income (k$)"], y: d["Spending Score (1-100)"] }))
+  }));
+  makeOrUpdate("scatterChart", {
+    type: "scatter",
+    data: { datasets },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>` ${ctx.dataset.label}: $${ctx.parsed.x}k · Score ${ctx.parsed.y}`}} },
+      scales:{
+        x:{title:{display:true,text:"Annual Income (k$)",color:tickColor,font:{size:10}},grid:{color:gridColor},min:0,max:140},
+        y:{title:{display:true,text:"Spending Score",color:tickColor,font:{size:10}},grid:{color:gridColor},min:0,max:110}
+      }
+    }
+  });
+}
+
+// DONUT
+function updateDonut(data) {
+  const counts = SEGS.map(s => data.filter(d => d["Customer Segment"]===s).length);
+  const labels = SEGS.map((s,i) => s.replace(" Customers","") + " (" + counts[i] + ")");
+  makeOrUpdate("donutChart", {
+    type:"doughnut",
+    data:{ labels, datasets:[{ data:counts, backgroundColor:Object.values(SEG_COLORS), borderWidth:3, borderColor:"#181c27", hoverOffset:8 }] },
+    options:{
+      responsive:true, maintainAspectRatio:false, cutout:"62%",
+      plugins:{
+        legend:{display:true,position:"bottom",labels:{color:tickColor,font:{size:10},boxWidth:10,padding:8}},
+        tooltip:{callbacks:{label:ctx=>` ${ctx.label}: ${data.length ? ((ctx.raw/data.length)*100).toFixed(1) : 0}%`}}
+      }
+    }
+  });
+}
+
+// BAR
+function updateBar(data) {
+  const incomes = SEGS.map(s => {
+    const sub = data.filter(d=>d["Customer Segment"]===s);
+    return sub.length ? +(avg(sub,"Annual Income (k$)").toFixed(1)) : 0;
+  });
+  const spends = SEGS.map(s => {
+    const sub = data.filter(d=>d["Customer Segment"]===s);
+    return sub.length ? +(avg(sub,"Spending Score (1-100)").toFixed(1)) : 0;
+  });
+  makeOrUpdate("barChart", {
+    type:"bar",
+    data:{
+      labels:SEGS.map(s=>s.replace(" Customers","")),
+      datasets:[
+        {label:"Income (k$)", data:incomes, backgroundColor:"#4f8ef7cc", borderRadius:4, barPercentage:0.42},
+        {label:"Spending Score", data:spends, backgroundColor:"#2ec4a0cc", borderRadius:4, barPercentage:0.42}
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false}},y:{grid:{color:gridColor}}}}
+  });
+}
+
+// GENDER
+function updateGender(data) {
+  const female = SEGS.map(s => data.filter(d=>d["Customer Segment"]===s && d.Gender==="Female").length);
+  const male   = SEGS.map(s => data.filter(d=>d["Customer Segment"]===s && d.Gender==="Male").length);
+  makeOrUpdate("genderChart", {
+    type:"bar",
+    data:{
+      labels:SEGS.map(s=>s.replace(" Customers","")),
+      datasets:[
+        {label:"Female", data:female, backgroundColor:"#e05c8acc", borderRadius:4, barPercentage:0.55},
+        {label:"Male",   data:male,   backgroundColor:"#4f8ef7cc", borderRadius:4, barPercentage:0.55}
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,grid:{color:gridColor}}}}
+  });
+}
+
+// CATEGORY
+function updateCat(data) {
+  const counts = CATS.map(c => data.filter(d=>d["Preferred Category"]===c).length);
+  const labels = CATS.map((c,i) => c + " (" + counts[i] + ")");
+  makeOrUpdate("catChart", {
+    type:"doughnut",
+    data:{ labels, datasets:[{ data:counts, backgroundColor:["#4f8ef7","#9b7fe8","#e05c8a","#2ec4a0"], borderWidth:3, borderColor:"#181c27", hoverOffset:6 }] },
+    options:{
+      responsive:true, maintainAspectRatio:false, cutout:"55%",
+      plugins:{
+        legend:{display:true,position:"bottom",labels:{color:tickColor,font:{size:10},boxWidth:10,padding:6}},
+        tooltip:{callbacks:{label:ctx=>` ${ctx.label}`}}
+      }
+    }
+  });
+}
+
+// AGE
+function updateAge(data) {
+  const datasets = SEGS.map(seg => ({
+    label: seg.replace(" Customers",""),
+    backgroundColor: SEG_COLORS[seg] + "cc",
+    borderRadius: 3,
+    data: AGE_GROUPS.map(ag => data.filter(d=>d["Customer Segment"]===seg && d["Age Group"]===ag).length)
+  }));
+  makeOrUpdate("ageChart", {
+    type:"bar",
+    data:{ labels:AGE_GROUPS, datasets },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:true,position:"bottom",labels:{color:tickColor,font:{size:10},boxWidth:10,padding:8}}},
+      scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,grid:{color:gridColor}}}
+    }
+  });
+}
+
+// TABLE
+function updateTable(data) {
+  const tbody = document.getElementById("segTableBody");
+  tbody.innerHTML = "";
+  const total = data.length;
+  SEGS.forEach(seg => {
+    const sub = data.filter(d=>d["Customer Segment"]===seg);
+    if (!sub.length) return;
+    const count = sub.length;
+    const pct = ((count/total)*100).toFixed(1);
+    const income = avg(sub,"Annual Income (k$)").toFixed(1);
+    const spend = avg(sub,"Spending Score (1-100)").toFixed(1);
+    const color = SEG_COLORS[seg];
+    const label = seg.replace(" Customers","");
+    tbody.innerHTML += `<tr>
+      <td><span class="seg-dot" style="background:${color}"></span>${label}</td>
+      <td>${count}</td>
+      <td>$${income}k</td>
+      <td>${spend}</td>
+      <td>
+        <span class="pct-badge" style="color:${color}">${pct}%</span>
+        <div class="bar-wrap"><div class="bar-fill" style="width:${pct}%;background:${color}"></div></div>
+      </td>
+    </tr>`;
+  });
+  if (!tbody.innerHTML) tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px;font-style:italic;">No data for current selection</td></tr>`;
+}
+
+// ===== SIDEBAR CONTROLS =====
+function toggleCollapse() {
+  document.getElementById("sidebar").classList.toggle("collapsed");
+}
+function toggleSidebar() {
+  const s = document.getElementById("sidebar");
+  const h = document.getElementById("hamburger");
+  const o = document.getElementById("overlay");
+  s.classList.toggle("open");
+  h.classList.toggle("open");
+  o.classList.toggle("visible");
+}
+
+// ===== EXPORT =====
+function downloadReport() {
+  const b64 = "PCFET0NUWVBFIGh0bWw+CjxodG1sIGxhbmc9ImVuIj4KPGhlYWQ+CjxtZXRhIGNoYXJzZXQ9IlVURi04Ij4KPHRpdGxlPkN1c3RvbWVyIFNlZ21lbnRhdGlvbiBSZXBvcnQg4oCUIEFsZ29uaXZlPC90aXRsZT4KPGxpbmsgaHJlZj0iaHR0cHM6Ly9mb250cy5nb29nbGVhcGlzLmNvbS9jc3MyP2ZhbWlseT1ETStTYW5zOndnaHRAMzAwOzQwMDs1MDA7NjAwJmZhbWlseT1ETStNb25vOndnaHRANDAwOzUwMCZkaXNwbGF5PXN3YXAiIHJlbD0ic3R5bGVzaGVldCI+CjxzY3JpcHQgc3JjPSJodHRwczovL2NkbmpzLmNsb3VkZmxhcmUuY29tL2FqYXgvbGlicy9DaGFydC5qcy80LjQuMS9jaGFydC51bWQuanMiPjwvc2NyaXB0Pgo8c3R5bGU+CiAgKiwgKjo6YmVmb3JlLCAqOjphZnRlciB7IGJveC1zaXppbmc6IGJvcmRlci1ib3g7IG1hcmdpbjogMDsgcGFkZGluZzogMDsgfQogIDpyb290IHsKICAgIC0tYzE6ICM0ZjhlZjc7IC0tYzI6ICMyZWM0YTA7IC0tYzM6ICNmNDg0NWY7IC0tYzQ6ICNlMDVjOGE7IC0tYzU6ICM5YjdmZTg7CiAgICAtLWRhcms6ICMwZjExMTc7IC0tdGV4dDogIzFhMWQyZTsgLS1tdXRlZDogIzZiNzI4MDsgLS1ib3JkZXI6ICNlNWU3ZWI7IC0tYmc6ICNmOGY5ZmM7CiAgfQogIGJvZHkgeyBmb250LWZhbWlseTogJ0RNIFNhbnMnLCBzYW5zLXNlcmlmOyBiYWNrZ3JvdW5kOiAjZmZmOyBjb2xvcjogdmFyKC0tdGV4dCk7IGZvbnQtc2l6ZTogMTNweDsgfQoKICAvKiBDT1ZFUiBQQUdFICovCiAgLmNvdmVyIHsKICAgIHdpZHRoOiAxMDAlOyBtaW4taGVpZ2h0OiAxMDB2aDsKICAgIGJhY2tncm91bmQ6IHZhcigtLWRhcmspOwogICAgZGlzcGxheTogZmxleDsgZmxleC1kaXJlY3Rpb246IGNvbHVtbjsganVzdGlmeS1jb250ZW50OiBzcGFjZS1iZXR3ZWVuOwogICAgcGFkZGluZzogNjBweCA3MHB4OwogICAgcGFnZS1icmVhay1hZnRlcjogYWx3YXlzOwogICAgcG9zaXRpb246IHJlbGF0aXZlOyBvdmVyZmxvdzogaGlkZGVuOwogIH0KICAuY292ZXItYmcgewogICAgcG9zaXRpb246IGFic29sdXRlOyB0b3A6IDA7IGxlZnQ6IDA7IHJpZ2h0OiAwOyBib3R0b206IDA7CiAgICBiYWNrZ3JvdW5kOiByYWRpYWwtZ3JhZGllbnQoZWxsaXBzZSBhdCA4MCUgMjAlLCByZ2JhKDc5LDE0MiwyNDcsMC4xNSkgMCUsIHRyYW5zcGFyZW50IDYwJSksCiAgICAgICAgICAgICAgICByYWRpYWwtZ3JhZGllbnQoZWxsaXBzZSBhdCAyMCUgODAlLCByZ2JhKDE1NSwxMjcsMjMyLDAuMTIpIDAlLCB0cmFuc3BhcmVudCA2MCUpOwogICAgcG9pbnRlci1ldmVudHM6IG5vbmU7CiAgfQogIC5jb3Zlci10b3AgeyBwb3NpdGlvbjogcmVsYXRpdmU7IHotaW5kZXg6IDE7IH0KICAuY292ZXItbG9nbyB7IGRpc3BsYXk6IGZsZXg7IGFsaWduLWl0ZW1zOiBjZW50ZXI7IGdhcDogMTJweDsgbWFyZ2luLWJvdHRvbTogODBweDsgfQogIC5jb3Zlci1sb2dvLWJveCB7CiAgICB3aWR0aDogNDJweDsgaGVpZ2h0OiA0MnB4OyBib3JkZXItcmFkaXVzOiAxMHB4OwogICAgYmFja2dyb3VuZDogbGluZWFyLWdyYWRpZW50KDEzNWRlZywgIzRmOGVmNywgIzliN2ZlOCk7CiAgICBkaXNwbGF5OiBmbGV4OyBhbGlnbi1pdGVtczogY2VudGVyOyBqdXN0aWZ5LWNvbnRlbnQ6IGNlbnRlcjsKICAgIGZvbnQtc2l6ZTogMjBweDsgZm9udC13ZWlnaHQ6IDYwMDsgY29sb3I6ICNmZmY7CiAgfQogIC5jb3Zlci1sb2dvLXRleHQgeyBmb250LXNpemU6IDE4cHg7IGZvbnQtd2VpZ2h0OiA2MDA7IGNvbG9yOiAjZmZmOyB9CiAgLmNvdmVyLWxvZ28tc3ViIHsgZm9udC1zaXplOiAxMXB4OyBjb2xvcjogcmdiYSgyNTUsMjU1LDI1NSwwLjQpOyBtYXJnaW4tdG9wOiAycHg7IH0KICAuY292ZXItdGFnIHsKICAgIGRpc3BsYXk6IGlubGluZS1ibG9jazsgZm9udC1zaXplOiAxMXB4OyBwYWRkaW5nOiA1cHggMTRweDsKICAgIGJvcmRlcjogMXB4IHNvbGlkIHJnYmEoNzksMTQyLDI0NywwLjQpOyBib3JkZXItcmFkaXVzOiAyMHB4OwogICAgY29sb3I6ICM0ZjhlZjc7IG1hcmdpbi1ib3R0b206IDI0cHg7IGZvbnQtZmFtaWx5OiAnRE0gTW9ubycsIG1vbm9zcGFjZTsKICB9CiAgLmNvdmVyLXRpdGxlIHsgZm9udC1zaXplOiA0OHB4OyBmb250LXdlaWdodDogNjAwOyBjb2xvcjogI2ZmZjsgbGluZS1oZWlnaHQ6IDEuMTU7IG1hcmdpbi1ib3R0b206IDE2cHg7IH0KICAuY292ZXItc3VidGl0bGUgeyBmb250LXNpemU6IDE2cHg7IGNvbG9yOiByZ2JhKDI1NSwyNTUsMjU1LDAuNSk7IGxpbmUtaGVpZ2h0OiAxLjY7IG1heC13aWR0aDogNDgwcHg7IH0KICAuY292ZXItZGl2aWRlciB7IHdpZHRoOiA0OHB4OyBoZWlnaHQ6IDNweDsgYmFja2dyb3VuZDogdmFyKC0tYzEpOyBib3JkZXItcmFkaXVzOiAycHg7IG1hcmdpbjogMjhweCAwOyB9CiAgLmNvdmVyLW1ldGEgeyBkaXNwbGF5OiBmbGV4OyBnYXA6IDQwcHg7IH0KICAuY292ZXItbWV0YS1pdGVtIHsgfQogIC5jb3Zlci1tZXRhLWxhYmVsIHsgZm9udC1zaXplOiAxMHB4OyBjb2xvcjogcmdiYSgyNTUsMjU1LDI1NSwwLjM1KTsgdGV4dC10cmFuc2Zvcm06IHVwcGVyY2FzZTsgbGV0dGVyLXNwYWNpbmc6IDAuMWVtOyBtYXJnaW4tYm90dG9tOiA0cHg7IH0KICAuY292ZXItbWV0YS12YWx1ZSB7IGZvbnQtc2l6ZTogMTNweDsgY29sb3I6IHJnYmEoMjU1LDI1NSwyNTUsMC43NSk7IGZvbnQtd2VpZ2h0OiA1MDA7IH0KICAuY292ZXItYm90dG9tIHsgcG9zaXRpb246IHJlbGF0aXZlOyB6LWluZGV4OiAxOyBkaXNwbGF5OiBmbGV4OyBqdXN0aWZ5LWNvbnRlbnQ6IHNwYWNlLWJldHdlZW47IGFsaWduLWl0ZW1zOiBmbGV4LWVuZDsgfQogIC5jb3Zlci1hdXRob3IgeyB9CiAgLmNvdmVyLWF1dGhvci1sYWJlbCB7IGZvbnQtc2l6ZTogMTBweDsgY29sb3I6IHJnYmEoMjU1LDI1NSwyNTUsMC4zKTsgdGV4dC10cmFuc2Zvcm06IHVwcGVyY2FzZTsgbGV0dGVyLXNwYWNpbmc6IDAuMWVtOyBtYXJnaW4tYm90dG9tOiA2cHg7IH0KICAuY292ZXItYXV0aG9yLW5hbWUgeyBmb250LXNpemU6IDE1cHg7IGZvbnQtd2VpZ2h0OiA1MDA7IGNvbG9yOiAjZmZmOyB9CiAgLmNvdmVyLWF1dGhvci1yb2xlIHsgZm9udC1zaXplOiAxMnB4OyBjb2xvcjogcmdiYSgyNTUsMjU1LDI1NSwwLjQ1KTsgbWFyZ2luLXRvcDogMnB4OyB9CiAgLmNvdmVyLXN0YXRzIHsgZGlzcGxheTogZmxleDsgZ2FwOiAyOHB4OyB9CiAgLmNzdGF0IHsgdGV4dC1hbGlnbjogY2VudGVyOyB9CiAgLmNzdGF0LW51bSB7IGZvbnQtc2l6ZTogMjhweDsgZm9udC13ZWlnaHQ6IDYwMDsgY29sb3I6ICNmZmY7IGZvbnQtZmFtaWx5OiAnRE0gTW9ubycsIG1vbm9zcGFjZTsgfQogIC5jc3RhdC1sYWJlbCB7IGZvbnQtc2l6ZTogMTBweDsgY29sb3I6IHJnYmEoMjU1LDI1NSwyNTUsMC4zNSk7IHRleHQtdHJhbnNmb3JtOiB1cHBlcmNhc2U7IGxldHRlci1zcGFjaW5nOiAwLjA2ZW07IG1hcmdpbi10b3A6IDJweDsgfQoKICAvKiBQQUdFUyAqLwogIC5wYWdlIHsKICAgIHdpZHRoOiAxMDAlOyBtaW4taGVpZ2h0OiAxMDB2aDsKICAgIHBhZGRpbmc6IDUycHggNjBweDsKICAgIHBhZ2UtYnJlYWstYWZ0ZXI6IGFsd2F5czsKICAgIGJhY2tncm91bmQ6ICNmZmY7CiAgfQogIC5wYWdlOmxhc3QtY2hpbGQgeyBwYWdlLWJyZWFrLWFmdGVyOiBhdm9pZDsgfQoKICAucGFnZS1oZWFkZXItYmFyIHsKICAgIGRpc3BsYXk6IGZsZXg7IGp1c3RpZnktY29udGVudDogc3BhY2UtYmV0d2VlbjsgYWxpZ24taXRlbXM6IGNlbnRlcjsKICAgIHBhZGRpbmctYm90dG9tOiAxOHB4OyBib3JkZXItYm90dG9tOiAycHggc29saWQgdmFyKC0tZGFyayk7CiAgICBtYXJnaW4tYm90dG9tOiAzMnB4OwogIH0KICAuc2VjdGlvbi1udW0geyBmb250LXNpemU6IDExcHg7IGNvbG9yOiB2YXIoLS1tdXRlZCk7IGZvbnQtZmFtaWx5OiAnRE0gTW9ubycsIG1vbm9zcGFjZTsgdGV4dC10cmFuc2Zvcm06IHVwcGVyY2FzZTsgbGV0dGVyLXNwYWNpbmc6IDAuMDhlbTsgfQogIC5zZWN0aW9uLXRpdGxlIHsgZm9udC1zaXplOiAyMnB4OyBmb250LXdlaWdodDogNjAwOyBjb2xvcjogdmFyKC0tdGV4dCk7IG1hcmdpbi10b3A6IDRweDsgfQogIC5wYWdlLWJyYW5kIHsgZm9udC1zaXplOiAxMXB4OyBjb2xvcjogdmFyKC0tbXV0ZWQpOyBmb250LWZhbWlseTogJ0RNIE1vbm8nLCBtb25vc3BhY2U7IH0KCiAgLyogS1BJIEdSSUQgKi8KICAua3BpLWdyaWQgeyBkaXNwbGF5OiBncmlkOyBncmlkLXRlbXBsYXRlLWNvbHVtbnM6IHJlcGVhdCg1LCAxZnIpOyBnYXA6IDE0cHg7IG1hcmdpbi1ib3R0b206IDMycHg7IH0KICAua3BpLWNhcmQgewogICAgYm9yZGVyLXJhZGl1czogMTBweDsgcGFkZGluZzogMThweCAxNnB4OwogICAgYm9yZGVyLXRvcDogM3B4IHNvbGlkOwogICAgYmFja2dyb3VuZDogdmFyKC0tYmcpOwogIH0KICAua3BpLWNhcmQuYzEgeyBib3JkZXItY29sb3I6IHZhcigtLWMxKTsgfQogIC5rcGktY2FyZC5jMiB7IGJvcmRlci1jb2xvcjogdmFyKC0tYzIpOyB9CiAgLmtwaS1jYXJkLmMzIHsgYm9yZGVyLWNvbG9yOiB2YXIoLS1jMyk7IH0KICAua3BpLWNhcmQuYzQgeyBib3JkZXItY29sb3I6IHZhcigtLWM0KTsgfQogIC5rcGktY2FyZC5jNSB7IGJvcmRlci1jb2xvcjogdmFyKC0tYzUpOyB9CiAgLmtwaS1sYWJlbCB7IGZvbnQtc2l6ZTogMTBweDsgY29sb3I6IHZhcigtLW11dGVkKTsgdGV4dC10cmFuc2Zvcm06IHVwcGVyY2FzZTsgbGV0dGVyLXNwYWNpbmc6IDAuMDdlbTsgbWFyZ2luLWJvdHRvbTogOHB4OyB9CiAgLmtwaS12YWx1ZSB7IGZvbnQtc2l6ZTogMjJweDsgZm9udC13ZWlnaHQ6IDYwMDsgY29sb3I6IHZhcigtLXRleHQpOyBmb250LWZhbWlseTogJ0RNIE1vbm8nLCBtb25vc3BhY2U7IH0KICAua3BpLXN1YiB7IGZvbnQtc2l6ZTogMTBweDsgY29sb3I6IHZhcigtLW11dGVkKTsgbWFyZ2luLXRvcDogNHB4OyB9CgogIC8qIENIQVJUIENBUkRTICovCiAgLmNoYXJ0LWdyaWQtMiB7IGRpc3BsYXk6IGdyaWQ7IGdyaWQtdGVtcGxhdGUtY29sdW1uczogMWZyIDFmcjsgZ2FwOiAyMHB4OyBtYXJnaW4tYm90dG9tOiAyMHB4OyB9CiAgLmNoYXJ0LWdyaWQtMyB7IGRpc3BsYXk6IGdyaWQ7IGdyaWQtdGVtcGxhdGUtY29sdW1uczogMWZyIDFmciAxZnI7IGdhcDogMTZweDsgbWFyZ2luLWJvdHRvbTogMjBweDsgfQogIC5jaGFydC1ncmlkLWZ1bGwgeyBtYXJnaW4tYm90dG9tOiAyMHB4OyB9CgogIC5jaGFydC1jYXJkIHsKICAgIGJvcmRlcjogMXB4IHNvbGlkIHZhcigtLWJvcmRlcik7IGJvcmRlci1yYWRpdXM6IDEwcHg7CiAgICBwYWRkaW5nOiAxOHB4IDIwcHg7IGJhY2tncm91bmQ6ICNmZmY7CiAgfQogIC5jaGFydC10aXRsZSB7IGZvbnQtc2l6ZTogMTFweDsgZm9udC13ZWlnaHQ6IDUwMDsgY29sb3I6IHZhcigtLW11dGVkKTsgdGV4dC10cmFuc2Zvcm06IHVwcGVyY2FzZTsgbGV0dGVyLXNwYWNpbmc6IDAuMDdlbTsgbWFyZ2luLWJvdHRvbTogNHB4OyB9CiAgLmNoYXJ0LWRlc2MgeyBmb250LXNpemU6IDEycHg7IGNvbG9yOiB2YXIoLS10ZXh0KTsgbWFyZ2luLWJvdHRvbTogMTRweDsgbGluZS1oZWlnaHQ6IDEuNTsgfQoKICAubGVnZW5kIHsgZGlzcGxheTogZmxleDsgZmxleC13cmFwOiB3cmFwOyBnYXA6IDhweDsgbWFyZ2luLWJvdHRvbTogMTJweDsgfQogIC5sZWcgeyBkaXNwbGF5OiBmbGV4OyBhbGlnbi1pdGVtczogY2VudGVyOyBnYXA6IDRweDsgZm9udC1zaXplOiAxMXB4OyBjb2xvcjogdmFyKC0tbXV0ZWQpOyB9CiAgLmxlZy1kb3QgeyB3aWR0aDogOHB4OyBoZWlnaHQ6IDhweDsgYm9yZGVyLXJhZGl1czogNTAlOyBmbGV4LXNocmluazogMDsgfQoKICAvKiBJTlNJR0hUIEJPWEVTICovCiAgLmluc2lnaHQtZ3JpZCB7IGRpc3BsYXk6IGdyaWQ7IGdyaWQtdGVtcGxhdGUtY29sdW1uczogMWZyIDFmciAxZnI7IGdhcDogMTRweDsgbWFyZ2luLWJvdHRvbTogMjhweDsgfQogIC5pbnNpZ2h0LWJveCB7CiAgICBib3JkZXItcmFkaXVzOiA4cHg7IHBhZGRpbmc6IDE2cHg7IGJhY2tncm91bmQ6IHZhcigtLWJnKTsKICAgIGJvcmRlci1sZWZ0OiAzcHggc29saWQ7CiAgfQogIC5pbnNpZ2h0LWJveC5pMSB7IGJvcmRlci1jb2xvcjogdmFyKC0tYzEpOyB9CiAgLmluc2lnaHQtYm94LmkyIHsgYm9yZGVyLWNvbG9yOiB2YXIoLS1jMik7IH0KICAuaW5zaWdodC1ib3guaTMgeyBib3JkZXItY29sb3I6IHZhcigtLWMzKTsgfQogIC5pbnNpZ2h0LWJveC5pNCB7IGJvcmRlci1jb2xvcjogdmFyKC0tYzQpOyB9CiAgLmluc2lnaHQtYm94Lmk1IHsgYm9yZGVyLWNvbG9yOiB2YXIoLS1jNSk7IH0KICAuaW5zaWdodC1pY29uIHsgZm9udC1zaXplOiAxOHB4OyBtYXJnaW4tYm90dG9tOiA4cHg7IH0KICAuaW5zaWdodC10aXRsZSB7IGZvbnQtc2l6ZTogMTJweDsgZm9udC13ZWlnaHQ6IDYwMDsgY29sb3I6IHZhcigtLXRleHQpOyBtYXJnaW4tYm90dG9tOiA1cHg7IH0KICAuaW5zaWdodC1ib2R5IHsgZm9udC1zaXplOiAxMXB4OyBjb2xvcjogdmFyKC0tbXV0ZWQpOyBsaW5lLWhlaWdodDogMS42OyB9CgogIC8qIFNFR01FTlQgVEFCTEUgKi8KICAuc2VnLXRhYmxlIHsgd2lkdGg6IDEwMCU7IGJvcmRlci1jb2xsYXBzZTogY29sbGFwc2U7IGZvbnQtc2l6ZTogMTJweDsgfQogIC5zZWctdGFibGUgdGhlYWQgdGggewogICAgYmFja2dyb3VuZDogdmFyKC0tZGFyayk7IGNvbG9yOiAjZmZmOyBwYWRkaW5nOiAxMHB4IDE0cHg7CiAgICB0ZXh0LWFsaWduOiBsZWZ0OyBmb250LXdlaWdodDogNTAwOyBmb250LXNpemU6IDExcHg7IHRleHQtdHJhbnNmb3JtOiB1cHBlcmNhc2U7IGxldHRlci1zcGFjaW5nOiAwLjA2ZW07CiAgfQogIC5zZWctdGFibGUgdGhlYWQgdGg6Zmlyc3QtY2hpbGQgeyBib3JkZXItcmFkaXVzOiA2cHggMCAwIDA7IH0KICAuc2VnLXRhYmxlIHRoZWFkIHRoOmxhc3QtY2hpbGQgeyBib3JkZXItcmFkaXVzOiAwIDZweCAwIDA7IHRleHQtYWxpZ246IHJpZ2h0OyB9CiAgLnNlZy10YWJsZSB0Ym9keSB0ciB7IGJvcmRlci1ib3R0b206IDFweCBzb2xpZCB2YXIoLS1ib3JkZXIpOyB9CiAgLnNlZy10YWJsZSB0Ym9keSB0cjpob3ZlciB7IGJhY2tncm91bmQ6IHZhcigtLWJnKTsgfQogIC5zZWctdGFibGUgdGJvZHkgdGQgeyBwYWRkaW5nOiAxMXB4IDE0cHg7IGNvbG9yOiB2YXIoLS10ZXh0KTsgfQogIC5zZWctdGFibGUgdGJvZHkgdGQ6bGFzdC1jaGlsZCB7IHRleHQtYWxpZ246IHJpZ2h0OyB9CiAgLmRvdCB7IHdpZHRoOiA5cHg7IGhlaWdodDogOXB4OyBib3JkZXItcmFkaXVzOiA1MCU7IGRpc3BsYXk6IGlubGluZS1ibG9jazsgbWFyZ2luLXJpZ2h0OiA3cHg7IHZlcnRpY2FsLWFsaWduOiBtaWRkbGU7IH0KICAuYmFyLWJnIHsgYmFja2dyb3VuZDogdmFyKC0tYm9yZGVyKTsgYm9yZGVyLXJhZGl1czogM3B4OyBoZWlnaHQ6IDVweDsgbWFyZ2luLXRvcDogNHB4OyB9CiAgLmJhci1maWxsIHsgaGVpZ2h0OiA1cHg7IGJvcmRlci1yYWRpdXM6IDNweDsgfQoKICAvKiBSRUNPTU1FTkRBVElPTiBCT1hFUyAqLwogIC5yZWMtZ3JpZCB7IGRpc3BsYXk6IGdyaWQ7IGdyaWQtdGVtcGxhdGUtY29sdW1uczogMWZyIDFmcjsgZ2FwOiAxNnB4OyB9CiAgLnJlYy1ib3ggeyBib3JkZXI6IDFweCBzb2xpZCB2YXIoLS1ib3JkZXIpOyBib3JkZXItcmFkaXVzOiAxMHB4OyBwYWRkaW5nOiAyMHB4OyB9CiAgLnJlYy1zZWcgeyBmb250LXNpemU6IDExcHg7IGZvbnQtd2VpZ2h0OiA2MDA7IHRleHQtdHJhbnNmb3JtOiB1cHBlcmNhc2U7IGxldHRlci1zcGFjaW5nOiAwLjA4ZW07IG1hcmdpbi1ib3R0b206IDhweDsgfQogIC5yZWMtdGl0bGUgeyBmb250LXNpemU6IDE0cHg7IGZvbnQtd2VpZ2h0OiA2MDA7IGNvbG9yOiB2YXIoLS10ZXh0KTsgbWFyZ2luLWJvdHRvbTogOHB4OyB9CiAgLnJlYy1ib2R5IHsgZm9udC1zaXplOiAxMnB4OyBjb2xvcjogdmFyKC0tbXV0ZWQpOyBsaW5lLWhlaWdodDogMS42NTsgfQogIC5yZWMtY2hpcCB7CiAgICBkaXNwbGF5OiBpbmxpbmUtYmxvY2s7IGZvbnQtc2l6ZTogMTBweDsgcGFkZGluZzogM3B4IDlweDsKICAgIGJvcmRlci1yYWRpdXM6IDRweDsgbWFyZ2luLXRvcDogMTBweDsgbWFyZ2luLXJpZ2h0OiA0cHg7IGZvbnQtd2VpZ2h0OiA1MDA7CiAgfQoKICAvKiBGT09URVIgKi8KICAucGFnZS1mb290ZXIgewogICAgZGlzcGxheTogZmxleDsganVzdGlmeS1jb250ZW50OiBzcGFjZS1iZXR3ZWVuOyBhbGlnbi1pdGVtczogY2VudGVyOwogICAgbWFyZ2luLXRvcDogMzJweDsgcGFkZGluZy10b3A6IDE0cHg7CiAgICBib3JkZXItdG9wOiAxcHggc29saWQgdmFyKC0tYm9yZGVyKTsKICAgIGZvbnQtc2l6ZTogMTBweDsgY29sb3I6IHZhcigtLW11dGVkKTsgZm9udC1mYW1pbHk6ICdETSBNb25vJywgbW9ub3NwYWNlOwogIH0KCiAgQG1lZGlhIHByaW50IHsKICAgIGJvZHkgeyAtd2Via2l0LXByaW50LWNvbG9yLWFkanVzdDogZXhhY3Q7IHByaW50LWNvbG9yLWFkanVzdDogZXhhY3Q7IH0KICAgIC5wYWdlLCAuY292ZXIgeyBwYWdlLWJyZWFrLWFmdGVyOiBhbHdheXM7IH0KICAgIC5uby1wcmludCB7IGRpc3BsYXk6IG5vbmU7IH0KICB9Cjwvc3R5bGU+CjwvaGVhZD4KPGJvZHk+Cgo8IS0tID09PT09IENPVkVSIFBBR0UgPT09PT0gLS0+CjxkaXYgY2xhc3M9ImNvdmVyIj4KICA8ZGl2IGNsYXNzPSJjb3Zlci1iZyI+PC9kaXY+CiAgPGRpdiBjbGFzcz0iY292ZXItdG9wIj4KICAgIAogICAgCiAgICA8ZGl2IGNsYXNzPSJjb3Zlci10aXRsZSI+Q3VzdG9tZXI8YnI+U2VnbWVudGF0aW9uPGJyPkFuYWx5c2lzPC9kaXY+CiAgICA8ZGl2IGNsYXNzPSJjb3Zlci1zdWJ0aXRsZSI+QSBjb21wcmVoZW5zaXZlIHN0dWR5IG9mIGN1c3RvbWVyIGJlaGF2aW91ciwgcHVyY2hhc2luZyBwYXR0ZXJucywgYW5kIGRlbW9ncmFwaGljIHByb2ZpbGVzIHVzaW5nIGNsdXN0ZXJpbmcgdGVjaG5pcXVlcyB0byBkcml2ZSB0YXJnZXRlZCBidXNpbmVzcyBzdHJhdGVnaWVzLjwvZGl2PgogICAgPGRpdiBjbGFzcz0iY292ZXItZGl2aWRlciI+PC9kaXY+CiAgICA8ZGl2IGNsYXNzPSJjb3Zlci1tZXRhIj4KICAgICAgPGRpdiBjbGFzcz0iY292ZXItbWV0YS1pdGVtIj4KICAgICAgICA8ZGl2IGNsYXNzPSJjb3Zlci1tZXRhLWxhYmVsIj5EYXRhc2V0PC9kaXY+CiAgICAgICAgPGRpdiBjbGFzcz0iY292ZXItbWV0YS12YWx1ZSI+MjAwIEN1c3RvbWVyczwvZGl2PgogICAgICA8L2Rpdj4KICAgICAgPGRpdiBjbGFzcz0iY292ZXItbWV0YS1pdGVtIj4KICAgICAgICA8ZGl2IGNsYXNzPSJjb3Zlci1tZXRhLWxhYmVsIj5TZWdtZW50czwvZGl2PgogICAgICAgIDxkaXYgY2xhc3M9ImNvdmVyLW1ldGEtdmFsdWUiPjUgQ2x1c3RlcnM8L2Rpdj4KICAgICAgPC9kaXY+CiAgICAgIDxkaXYgY2xhc3M9ImNvdmVyLW1ldGEtaXRlbSI+CiAgICAgICAgPGRpdiBjbGFzcz0iY292ZXItbWV0YS1sYWJlbCI+RmVhdHVyZXM8L2Rpdj4KICAgICAgICA8ZGl2IGNsYXNzPSJjb3Zlci1tZXRhLXZhbHVlIj4xMSBWYXJpYWJsZXM8L2Rpdj4KICAgICAgPC9kaXY+CiAgICAgIDxkaXYgY2xhc3M9ImNvdmVyLW1ldGEtaXRlbSI+CiAgICAgICAgPGRpdiBjbGFzcz0iY292ZXItbWV0YS1sYWJlbCI+WWVhcjwvZGl2PgogICAgICAgIDxkaXYgY2xhc3M9ImNvdmVyLW1ldGEtdmFsdWUiPjIwMjU8L2Rpdj4KICAgICAgPC9kaXY+CiAgICA8L2Rpdj4KICA8L2Rpdj4KICA8ZGl2IGNsYXNzPSJjb3Zlci1ib3R0b20iPgogICAgPGRpdiBjbGFzcz0iY292ZXItYXV0aG9yIj4KICAgICAgPGRpdiBjbGFzcz0iY292ZXItYXV0aG9yLWxhYmVsIj5BbmFseXNpcyBieTwvZGl2PgogICAgICA8ZGl2IGNsYXNzPSJjb3Zlci1hdXRob3ItbmFtZSI+QmluaXQgUm9iaW5zb24gS2FjaGhhcDwvZGl2PgogICAgICA8ZGl2IGNsYXNzPSJjb3Zlci1hdXRob3Itcm9sZSI+RGF0YSBBbmFseXRpY3MgSW50ZXJuIMK3IEFsZ29uaXZlPC9kaXY+CiAgICA8L2Rpdj4KICAgIDxkaXYgY2xhc3M9ImNvdmVyLXN0YXRzIj4KICAgICAgPGRpdiBjbGFzcz0iY3N0YXQiPjxkaXYgY2xhc3M9ImNzdGF0LW51bSI+MjAwPC9kaXY+PGRpdiBjbGFzcz0iY3N0YXQtbGFiZWwiPkN1c3RvbWVyczwvZGl2PjwvZGl2PgogICAgICA8ZGl2IGNsYXNzPSJjc3RhdCI+PGRpdiBjbGFzcz0iY3N0YXQtbnVtIj41PC9kaXY+PGRpdiBjbGFzcz0iY3N0YXQtbGFiZWwiPlNlZ21lbnRzPC9kaXY+PC9kaXY+CiAgICAgIDxkaXYgY2xhc3M9ImNzdGF0Ij48ZGl2IGNsYXNzPSJjc3RhdC1udW0iPjExPC9kaXY+PGRpdiBjbGFzcz0iY3N0YXQtbGFiZWwiPkZlYXR1cmVzPC9kaXY+PC9kaXY+CiAgICA8L2Rpdj4KICA8L2Rpdj4KPC9kaXY+Cgo8IS0tID09PT09IFBBR0UgMTogRVhFQ1VUSVZFIFNVTU1BUlkgPT09PT0gLS0+CjxkaXYgY2xhc3M9InBhZ2UiPgogIDxkaXYgY2xhc3M9InBhZ2UtaGVhZGVyLWJhciI+CiAgICA8ZGl2PgogICAgICA8ZGl2IGNsYXNzPSJzZWN0aW9uLW51bSI+U2VjdGlvbiAwMTwvZGl2PgogICAgICA8ZGl2IGNsYXNzPSJzZWN0aW9uLXRpdGxlIj5FeGVjdXRpdmUgU3VtbWFyeTwvZGl2PgogICAgPC9kaXY+CiAgICAKICA8L2Rpdj4KCiAgPCEtLSBLUEkgQ0FSRFMgLS0+CiAgPGRpdiBjbGFzcz0ia3BpLWdyaWQiPgogICAgPGRpdiBjbGFzcz0ia3BpLWNhcmQgYzEiPgogICAgICA8ZGl2IGNsYXNzPSJrcGktbGFiZWwiPlRvdGFsIEN1c3RvbWVyczwvZGl2PgogICAgICA8ZGl2IGNsYXNzPSJrcGktdmFsdWUiPjIwMDwvZGl2PgogICAgICA8ZGl2IGNsYXNzPSJrcGktc3ViIj5GdWxsIGRhdGFzZXQgYW5hbHlzZWQ8L2Rpdj4KICAgIDwvZGl2PgogICAgPGRpdiBjbGFzcz0ia3BpLWNhcmQgYzIiPgogICAgICA8ZGl2IGNsYXNzPSJrcGktbGFiZWwiPkF2ZyBBbm51YWwgSW5jb21lPC9kaXY+CiAgICAgIDxkaXYgY2xhc3M9ImtwaS12YWx1ZSI+JDYwLjZrPC9kaXY+CiAgICAgIDxkaXYgY2xhc3M9ImtwaS1zdWIiPkFjcm9zcyBhbGwgc2VnbWVudHM8L2Rpdj4KICAgIDwvZGl2PgogICAgPGRpdiBjbGFzcz0ia3BpLWNhcmQgYzMiPgogICAgICA8ZGl2IGNsYXNzPSJrcGktbGFiZWwiPkF2ZyBTcGVuZGluZyBTY29yZTwvZGl2PgogICAgICA8ZGl2IGNsYXNzPSJrcGktdmFsdWUiPjUwLjI8L2Rpdj4KICAgICAgPGRpdiBjbGFzcz0ia3BpLXN1YiI+T3V0IG9mIDEwMDwvZGl2PgogICAgPC9kaXY+CiAgICA8ZGl2IGNsYXNzPSJrcGktY2FyZCBjNCI+CiAgICAgIDxkaXYgY2xhc3M9ImtwaS1sYWJlbCI+QXZnIENyZWRpdCBTY29yZTwvZGl2PgogICAgICA8ZGl2IGNsYXNzPSJrcGktdmFsdWUiPjc0My43PC9kaXY+CiAgICAgIDxkaXYgY2xhc3M9ImtwaS1zdWIiPkdvb2QgY3JlZGl0IHJhbmdlPC9kaXY+CiAgICA8L2Rpdj4KICAgIDxkaXYgY2xhc3M9ImtwaS1jYXJkIGM1Ij4KICAgICAgPGRpdiBjbGFzcz0ia3BpLWxhYmVsIj5BdmcgTG95YWx0eSAoeXJzKTwvZGl2PgogICAgICA8ZGl2IGNsYXNzPSJrcGktdmFsdWUiPjUuOTwvZGl2PgogICAgICA8ZGl2IGNsYXNzPSJrcGktc3ViIj5IaWdoIHJldGVudGlvbiByYXRlPC9kaXY+CiAgICA8L2Rpdj4KICA8L2Rpdj4KCiAgPCEtLSBLRVkgSU5TSUdIVFMgLS0+CiAgPGRpdiBjbGFzcz0iaW5zaWdodC1ncmlkIj4KICAgIDxkaXYgY2xhc3M9Imluc2lnaHQtYm94IGkxIj4KICAgICAgPGRpdiBjbGFzcz0iaW5zaWdodC1pY29uIj7wn5OKPC9kaXY+CiAgICAgIDxkaXYgY2xhc3M9Imluc2lnaHQtdGl0bGUiPkJ1ZGdldCBDdXN0b21lcnMgRG9taW5hdGU8L2Rpdj4KICAgICAgPGRpdiBjbGFzcz0iaW5zaWdodC1ib2R5Ij40MC41JSBvZiBhbGwgY3VzdG9tZXJzIGZhbGwgaW50byB0aGUgQnVkZ2V0IHNlZ21lbnQgd2l0aCBtb2RlcmF0ZSBpbmNvbWUgKCQ1NS4zayBhdmcpIGFuZCBiYWxhbmNlZCBzcGVuZGluZyBiZWhhdmlvdXIuPC9kaXY+CiAgICA8L2Rpdj4KICAgIDxkaXYgY2xhc3M9Imluc2lnaHQtYm94IGkyIj4KICAgICAgPGRpdiBjbGFzcz0iaW5zaWdodC1pY29uIj7wn5KOPC9kaXY+CiAgICAgIDxkaXYgY2xhc3M9Imluc2lnaHQtdGl0bGUiPlByZW1pdW06IEJlc3QgUk9JIFRhcmdldHM8L2Rpdj4KICAgICAgPGRpdiBjbGFzcz0iaW5zaWdodC1ib2R5Ij5QcmVtaXVtIGN1c3RvbWVycyAoMTkuNSUpIHNob3cgdGhlIGhpZ2hlc3Qgc3BlbmRpbmcgc2NvcmUgKDgyLjEpIHBhaXJlZCB3aXRoIGhpZ2ggaW5jb21lICgkODYuNWspIOKAlCB0b3AgcHJpb3JpdHkgZm9yIHVwc2VsbCBjYW1wYWlnbnMuPC9kaXY+CiAgICA8L2Rpdj4KICAgIDxkaXYgY2xhc3M9Imluc2lnaHQtYm94IGkzIj4KICAgICAgPGRpdiBjbGFzcz0iaW5zaWdodC1pY29uIj7imqE8L2Rpdj4KICAgICAgPGRpdiBjbGFzcz0iaW5zaWdodC10aXRsZSI+SW1wdWxzaXZlIFNlZ21lbnQgT3Bwb3J0dW5pdHk8L2Rpdj4KICAgICAgPGRpdiBjbGFzcz0iaW5zaWdodC1ib2R5Ij5IaWdoZXN0IGVhcm5lcnMgKCQ4OC4yayBhdmcpIGJ1dCBsb3dlc3Qgc3BlbmRlcnMgKDE3LjEgc2NvcmUpIOKAlCBzaWduaWZpY2FudCB1bnRhcHBlZCByZXZlbnVlIHBvdGVudGlhbCB3aXRoIHRhcmdldGVkIGVuZ2FnZW1lbnQuPC9kaXY+CiAgICA8L2Rpdj4KICAgIDxkaXYgY2xhc3M9Imluc2lnaHQtYm94IGk0Ij4KICAgICAgPGRpdiBjbGFzcz0iaW5zaWdodC1pY29uIj7wn46vPC9kaXY+CiAgICAgIDxkaXYgY2xhc3M9Imluc2lnaHQtdGl0bGUiPkNvbnNlcnZhdGl2ZSBMb3lhbHR5PC9kaXY+CiAgICAgIDxkaXYgY2xhc3M9Imluc2lnaHQtYm9keSI+Q29uc2VydmF0aXZlIGN1c3RvbWVycyBzcGVuZCBoaWdoICg3OS40KSBkZXNwaXRlIGxvdyBpbmNvbWUgKCQyNS43ayksIHByZWZlcnJpbmcgTHV4dXJ5IHByb2R1Y3RzIOKAlCBkcml2ZW4gYnkgbG95YWx0eSAoNi4xIGF2ZyB5ZWFycykuPC9kaXY+CiAgICA8L2Rpdj4KICAgIDxkaXYgY2xhc3M9Imluc2lnaHQtYm94IGk1Ij4KICAgICAgPGRpdiBjbGFzcz0iaW5zaWdodC1pY29uIj7wn5GlPC9kaXY+CiAgICAgIDxkaXYgY2xhc3M9Imluc2lnaHQtdGl0bGUiPkZlbWFsZSBDdXN0b21lciBNYWpvcml0eTwvZGl2PgogICAgICA8ZGl2IGNsYXNzPSJpbnNpZ2h0LWJvZHkiPjU2JSBvZiBjdXN0b21lcnMgYXJlIGZlbWFsZS4gRmVtYWxlIGRvbWluYW5jZSBpcyBoaWdoZXN0IGluIEJ1ZGdldCAoNDggdnMgMzMpIGFuZCBDb25zZXJ2YXRpdmUgc2VnbWVudHMgKDEzIHZzIDkpLjwvZGl2PgogICAgPC9kaXY+CiAgICA8ZGl2IGNsYXNzPSJpbnNpZ2h0LWJveCBpMSI+CiAgICAgIDxkaXYgY2xhc3M9Imluc2lnaHQtaWNvbiI+8J+bje+4jzwvZGl2PgogICAgICA8ZGl2IGNsYXNzPSJpbnNpZ2h0LXRpdGxlIj5FbGVjdHJvbmljcyBMZWFkcyBDYXRlZ29yaWVzPC9kaXY+CiAgICAgIDxkaXYgY2xhc3M9Imluc2lnaHQtYm9keSI+RWxlY3Ryb25pY3MgaXMgdGhlIG1vc3QgcHJlZmVycmVkIGNhdGVnb3J5ICg3OCBjdXN0b21lcnMpLCBmb2xsb3dlZCBieSBMdXh1cnkgKDU0KSwgRmFzaGlvbiAoNDEpLCBhbmQgQnVkZ2V0IHNob3BwaW5nICgyNykuPC9kaXY+CiAgICA8L2Rpdj4KICA8L2Rpdj4KCiAgPCEtLSBTRUdNRU5UIE9WRVJWSUVXIFRBQkxFIC0tPgogIDx0YWJsZSBjbGFzcz0ic2VnLXRhYmxlIj4KICAgIDx0aGVhZD4KICAgICAgPHRyPgogICAgICAgIDx0aD5TZWdtZW50PC90aD4KICAgICAgICA8dGg+Q3VzdG9tZXJzPC90aD4KICAgICAgICA8dGg+QXZnIEluY29tZTwvdGg+CiAgICAgICAgPHRoPkF2ZyBTcGVuZGluZyBTY29yZTwvdGg+CiAgICAgICAgPHRoPkF2ZyBDcmVkaXQgU2NvcmU8L3RoPgogICAgICAgIDx0aD5BdmcgTG95YWx0eTwvdGg+CiAgICAgICAgPHRoPlRvcCBDYXRlZ29yeTwvdGg+CiAgICAgICAgPHRoIHN0eWxlPSJ0ZXh0LWFsaWduOnJpZ2h0Ij5TaGFyZTwvdGg+CiAgICAgIDwvdHI+CiAgICA8L3RoZWFkPgogICAgPHRib2R5PgogICAgICA8dHI+CiAgICAgICAgPHRkPjxzcGFuIGNsYXNzPSJkb3QiIHN0eWxlPSJiYWNrZ3JvdW5kOiM0ZjhlZjciPjwvc3Bhbj5CdWRnZXQgQ3VzdG9tZXJzPC90ZD4KICAgICAgICA8dGQ+ODE8L3RkPjx0ZD4kNTUuM2s8L3RkPjx0ZD40OS41PC90ZD48dGQ+Nzc5LjU8L3RkPjx0ZD42LjMgeXJzPC90ZD48dGQ+RWxlY3Ryb25pY3M8L3RkPgogICAgICAgIDx0ZD48c3BhbiBzdHlsZT0iZm9udC1mYW1pbHk6J0RNIE1vbm8nLG1vbm9zcGFjZTtmb250LXNpemU6MTFweDtjb2xvcjojNGY4ZWY3Ij40MC41JTwvc3Bhbj48ZGl2IGNsYXNzPSJiYXItYmciPjxkaXYgY2xhc3M9ImJhci1maWxsIiBzdHlsZT0id2lkdGg6NDAuNSU7YmFja2dyb3VuZDojNGY4ZWY3Ij48L2Rpdj48L2Rpdj48L3RkPgogICAgICA8L3RyPgogICAgICA8dHI+CiAgICAgICAgPHRkPjxzcGFuIGNsYXNzPSJkb3QiIHN0eWxlPSJiYWNrZ3JvdW5kOiMyZWM0YTAiPjwvc3Bhbj5QcmVtaXVtIEN1c3RvbWVyczwvdGQ+CiAgICAgICAgPHRkPjM5PC90ZD48dGQ+JDg2LjVrPC90ZD48dGQ+ODIuMTwvdGQ+PHRkPjgzMC44PC90ZD48dGQ+Ni45IHlyczwvdGQ+PHRkPkx1eHVyeTwvdGQ+CiAgICAgICAgPHRkPjxzcGFuIHN0eWxlPSJmb250LWZhbWlseTonRE0gTW9ubycsbW9ub3NwYWNlO2ZvbnQtc2l6ZToxMXB4O2NvbG9yOiMyZWM0YTAiPjE5LjUlPC9zcGFuPjxkaXYgY2xhc3M9ImJhci1iZyI+PGRpdiBjbGFzcz0iYmFyLWZpbGwiIHN0eWxlPSJ3aWR0aDoxOS41JTtiYWNrZ3JvdW5kOiMyZWM0YTAiPjwvZGl2PjwvZGl2PjwvdGQ+CiAgICAgIDwvdHI+CiAgICAgIDx0cj4KICAgICAgICA8dGQ+PHNwYW4gY2xhc3M9ImRvdCIgc3R5bGU9ImJhY2tncm91bmQ6I2Y0ODQ1ZiI+PC9zcGFuPkltcHVsc2l2ZSBDdXN0b21lcnM8L3RkPgogICAgICAgIDx0ZD4zNTwvdGQ+PHRkPiQ4OC4yazwvdGQ+PHRkPjE3LjE8L3RkPjx0ZD44NTAuMDwvdGQ+PHRkPjQuNSB5cnM8L3RkPjx0ZD5FbGVjdHJvbmljczwvdGQ+CiAgICAgICAgPHRkPjxzcGFuIHN0eWxlPSJmb250LWZhbWlseTonRE0gTW9ubycsbW9ub3NwYWNlO2ZvbnQtc2l6ZToxMXB4O2NvbG9yOiNmNDg0NWYiPjE3LjUlPC9zcGFuPjxkaXYgY2xhc3M9ImJhci1iZyI+PGRpdiBjbGFzcz0iYmFyLWZpbGwiIHN0eWxlPSJ3aWR0aDoxNy41JTtiYWNrZ3JvdW5kOiNmNDg0NWYiPjwvZGl2PjwvZGl2PjwvdGQ+CiAgICAgIDwvdHI+CiAgICAgIDx0cj4KICAgICAgICA8dGQ+PHNwYW4gY2xhc3M9ImRvdCIgc3R5bGU9ImJhY2tncm91bmQ6I2UwNWM4YSI+PC9zcGFuPkF2ZXJhZ2UgQ3VzdG9tZXJzPC90ZD4KICAgICAgICA8dGQ+MjM8L3RkPjx0ZD4kMjYuM2s8L3RkPjx0ZD4yMC45PC90ZD48dGQ+NjU0LjY8L3RkPjx0ZD41LjEgeXJzPC90ZD48dGQ+QnVkZ2V0PC90ZD4KICAgICAgICA8dGQ+PHNwYW4gc3R5bGU9ImZvbnQtZmFtaWx5OidETSBNb25vJyxtb25vc3BhY2U7Zm9udC1zaXplOjExcHg7Y29sb3I6I2UwNWM4YSI+MTEuNSU8L3NwYW4+PGRpdiBjbGFzcz0iYmFyLWJnIj48ZGl2IGNsYXNzPSJiYXItZmlsbCIgc3R5bGU9IndpZHRoOjExLjUlO2JhY2tncm91bmQ6I2UwNWM4YSI+PC9kaXY+PC9kaXY+PC90ZD4KICAgICAgPC90cj4KICAgICAgPHRyPgogICAgICAgIDx0ZD48c3BhbiBjbGFzcz0iZG90IiBzdHlsZT0iYmFja2dyb3VuZDojOWI3ZmU4Ij48L3NwYW4+Q29uc2VydmF0aXZlIEN1c3RvbWVyczwvdGQ+CiAgICAgICAgPHRkPjIyPC90ZD48dGQ+JDI1LjdrPC90ZD48dGQ+NzkuNDwvdGQ+PHRkPjM4MS4xPC90ZD48dGQ+Ni4xIHlyczwvdGQ+PHRkPkx1eHVyeTwvdGQ+CiAgICAgICAgPHRkPjxzcGFuIHN0eWxlPSJmb250LWZhbWlseTonRE0gTW9ubycsbW9ub3NwYWNlO2ZvbnQtc2l6ZToxMXB4O2NvbG9yOiM5YjdmZTgiPjExLjAlPC9zcGFuPjxkaXYgY2xhc3M9ImJhci1iZyI+PGRpdiBjbGFzcz0iYmFyLWZpbGwiIHN0eWxlPSJ3aWR0aDoxMSU7YmFja2dyb3VuZDojOWI3ZmU4Ij48L2Rpdj48L2Rpdj48L3RkPgogICAgICA8L3RyPgogICAgPC90Ym9keT4KICA8L3RhYmxlPgoKICA8ZGl2IGNsYXNzPSJwYWdlLWZvb3RlciI+CiAgICA8c3Bhbj5CaW5pdCBSb2JpbnNvbiBLYWNoaGFwIMK3IERhdGEgQW5hbHl0aWNzIEludGVybiDCtyBBbGdvbml2ZTwvc3Bhbj4KICAgIDxzcGFuPlBhZ2UgMSBvZiAzPC9zcGFuPgogIDwvZGl2Pgo8L2Rpdj4KCjwhLS0gPT09PT0gUEFHRSAyOiBWSVNVQUwgQU5BTFlTSVMgPT09PT0gLS0+CjxkaXYgY2xhc3M9InBhZ2UiPgogIDxkaXYgY2xhc3M9InBhZ2UtaGVhZGVyLWJhciI+CiAgICA8ZGl2PgogICAgICA8ZGl2IGNsYXNzPSJzZWN0aW9uLW51bSI+U2VjdGlvbiAwMjwvZGl2PgogICAgICA8ZGl2IGNsYXNzPSJzZWN0aW9uLXRpdGxlIj5WaXN1YWwgQW5hbHlzaXM8L2Rpdj4KICAgIDwvZGl2PgogICAgCiAgPC9kaXY+CgogIDxkaXYgY2xhc3M9ImNoYXJ0LWdyaWQtMiI+CiAgICA8ZGl2IGNsYXNzPSJjaGFydC1jYXJkIj4KICAgICAgPGRpdiBjbGFzcz0iY2hhcnQtdGl0bGUiPlNlZ21lbnQgRGlzdHJpYnV0aW9uPC9kaXY+CiAgICAgIDxkaXYgY2xhc3M9ImNoYXJ0LWRlc2MiPlByb3BvcnRpb24gb2YgY3VzdG9tZXJzIGFjcm9zcyBhbGwgNSBiZWhhdmlvdXJhbCBzZWdtZW50cy48L2Rpdj4KICAgICAgPGRpdiBjbGFzcz0ibGVnZW5kIj4KICAgICAgICA8c3BhbiBjbGFzcz0ibGVnIj48c3BhbiBjbGFzcz0ibGVnLWRvdCIgc3R5bGU9ImJhY2tncm91bmQ6IzRmOGVmNyI+PC9zcGFuPkJ1ZGdldCAoODEpPC9zcGFuPgogICAgICAgIDxzcGFuIGNsYXNzPSJsZWciPjxzcGFuIGNsYXNzPSJsZWctZG90IiBzdHlsZT0iYmFja2dyb3VuZDojMmVjNGEwIj48L3NwYW4+UHJlbWl1bSAoMzkpPC9zcGFuPgogICAgICAgIDxzcGFuIGNsYXNzPSJsZWciPjxzcGFuIGNsYXNzPSJsZWctZG90IiBzdHlsZT0iYmFja2dyb3VuZDojZjQ4NDVmIj48L3NwYW4+SW1wdWxzaXZlICgzNSk8L3NwYW4+CiAgICAgICAgPHNwYW4gY2xhc3M9ImxlZyI+PHNwYW4gY2xhc3M9ImxlZy1kb3QiIHN0eWxlPSJiYWNrZ3JvdW5kOiNlMDVjOGEiPjwvc3Bhbj5BdmVyYWdlICgyMyk8L3NwYW4+CiAgICAgICAgPHNwYW4gY2xhc3M9ImxlZyI+PHNwYW4gY2xhc3M9ImxlZy1kb3QiIHN0eWxlPSJiYWNrZ3JvdW5kOiM5YjdmZTgiPjwvc3Bhbj5Db25zZXJ2YXRpdmUgKDIyKTwvc3Bhbj4KICAgICAgPC9kaXY+CiAgICAgIDxkaXYgc3R5bGU9InBvc2l0aW9uOnJlbGF0aXZlO2hlaWdodDoyMDBweDsiPjxjYW52YXMgaWQ9InJfZG9udXQiPjwvY2FudmFzPjwvZGl2PgogICAgPC9kaXY+CiAgICA8ZGl2IGNsYXNzPSJjaGFydC1jYXJkIj4KICAgICAgPGRpdiBjbGFzcz0iY2hhcnQtdGl0bGUiPkluY29tZSB2cyBTcGVuZGluZyBTY29yZSDigJQgQ2x1c3RlciBWaWV3PC9kaXY+CiAgICAgIDxkaXYgY2xhc3M9ImNoYXJ0LWRlc2MiPkVhY2ggZG90IHJlcHJlc2VudHMgYSBjdXN0b21lci4gRGlzdGluY3QgY2x1c3RlcnMgY29uZmlybSBjbGVhciBzZWdtZW50IHNlcGFyYXRpb24uPC9kaXY+CiAgICAgIDxkaXYgc3R5bGU9InBvc2l0aW9uOnJlbGF0aXZlO2hlaWdodDoyMzBweDsiPjxjYW52YXMgaWQ9InJfc2NhdHRlciI+PC9jYW52YXM+PC9kaXY+CiAgICA8L2Rpdj4KICA8L2Rpdj4KCiAgPGRpdiBjbGFzcz0iY2hhcnQtZ3JpZC0zIj4KICAgIDxkaXYgY2xhc3M9ImNoYXJ0LWNhcmQiPgogICAgICA8ZGl2IGNsYXNzPSJjaGFydC10aXRsZSI+QXZnIEluY29tZSAmYW1wOyBTcGVuZGluZyBieSBTZWdtZW50PC9kaXY+CiAgICAgIDxkaXYgY2xhc3M9ImNoYXJ0LWRlc2MiPlNpZGUtYnktc2lkZSBjb21wYXJpc29uIG9mIGtleSBtZXRyaWNzIHBlciBzZWdtZW50LjwvZGl2PgogICAgICA8ZGl2IGNsYXNzPSJsZWdlbmQiPgogICAgICAgIDxzcGFuIGNsYXNzPSJsZWciPjxzcGFuIGNsYXNzPSJsZWctZG90IiBzdHlsZT0iYmFja2dyb3VuZDojNGY4ZWY3Ij48L3NwYW4+SW5jb21lIChrJCk8L3NwYW4+CiAgICAgICAgPHNwYW4gY2xhc3M9ImxlZyI+PHNwYW4gY2xhc3M9ImxlZy1kb3QiIHN0eWxlPSJiYWNrZ3JvdW5kOiMyZWM0YTAiPjwvc3Bhbj5TcGVuZGluZzwvc3Bhbj4KICAgICAgPC9kaXY+CiAgICAgIDxkaXYgc3R5bGU9InBvc2l0aW9uOnJlbGF0aXZlO2hlaWdodDoxODBweDsiPjxjYW52YXMgaWQ9InJfYmFyIj48L2NhbnZhcz48L2Rpdj4KICAgIDwvZGl2PgogICAgPGRpdiBjbGFzcz0iY2hhcnQtY2FyZCI+CiAgICAgIDxkaXYgY2xhc3M9ImNoYXJ0LXRpdGxlIj5HZW5kZXIgU3BsaXQgYnkgU2VnbWVudDwvZGl2PgogICAgICA8ZGl2IGNsYXNzPSJjaGFydC1kZXNjIj5GZW1hbGUgdnMgTWFsZSBkaXN0cmlidXRpb24gd2l0aGluIGVhY2ggc2VnbWVudC48L2Rpdj4KICAgICAgPGRpdiBjbGFzcz0ibGVnZW5kIj4KICAgICAgICA8c3BhbiBjbGFzcz0ibGVnIj48c3BhbiBjbGFzcz0ibGVnLWRvdCIgc3R5bGU9ImJhY2tncm91bmQ6I2UwNWM4YSI+PC9zcGFuPkZlbWFsZTwvc3Bhbj4KICAgICAgICA8c3BhbiBjbGFzcz0ibGVnIj48c3BhbiBjbGFzcz0ibGVnLWRvdCIgc3R5bGU9ImJhY2tncm91bmQ6IzRmOGVmNyI+PC9zcGFuPk1hbGU8L3NwYW4+CiAgICAgIDwvZGl2PgogICAgICA8ZGl2IHN0eWxlPSJwb3NpdGlvbjpyZWxhdGl2ZTtoZWlnaHQ6MTgwcHg7Ij48Y2FudmFzIGlkPSJyX2dlbmRlciI+PC9jYW52YXM+PC9kaXY+CiAgICA8L2Rpdj4KICAgIDxkaXYgY2xhc3M9ImNoYXJ0LWNhcmQiPgogICAgICA8ZGl2IGNsYXNzPSJjaGFydC10aXRsZSI+UHJlZmVycmVkIENhdGVnb3J5IE1peDwvZGl2PgogICAgICA8ZGl2IGNsYXNzPSJjaGFydC1kZXNjIj5PdmVyYWxsIHNob3BwaW5nIGNhdGVnb3J5IHByZWZlcmVuY2UgYWNyb3NzIGFsbCBjdXN0b21lcnMuPC9kaXY+CiAgICAgIDxkaXYgY2xhc3M9ImxlZ2VuZCI+CiAgICAgICAgPHNwYW4gY2xhc3M9ImxlZyI+PHNwYW4gY2xhc3M9ImxlZy1kb3QiIHN0eWxlPSJiYWNrZ3JvdW5kOiM0ZjhlZjciPjwvc3Bhbj5FbGVjdHJvbmljczwvc3Bhbj4KICAgICAgICA8c3BhbiBjbGFzcz0ibGVnIj48c3BhbiBjbGFzcz0ibGVnLWRvdCIgc3R5bGU9ImJhY2tncm91bmQ6IzliN2ZlOCI+PC9zcGFuPkx1eHVyeTwvc3Bhbj4KICAgICAgICA8c3BhbiBjbGFzcz0ibGVnIj48c3BhbiBjbGFzcz0ibGVnLWRvdCIgc3R5bGU9ImJhY2tncm91bmQ6I2UwNWM4YSI+PC9zcGFuPkZhc2hpb248L3NwYW4+CiAgICAgICAgPHNwYW4gY2xhc3M9ImxlZyI+PHNwYW4gY2xhc3M9ImxlZy1kb3QiIHN0eWxlPSJiYWNrZ3JvdW5kOiMyZWM0YTAiPjwvc3Bhbj5CdWRnZXQ8L3NwYW4+CiAgICAgIDwvZGl2PgogICAgICA8ZGl2IHN0eWxlPSJwb3NpdGlvbjpyZWxhdGl2ZTtoZWlnaHQ6MTgwcHg7Ij48Y2FudmFzIGlkPSJyX2NhdCI+PC9jYW52YXM+PC9kaXY+CiAgICA8L2Rpdj4KICA8L2Rpdj4KCiAgPGRpdiBjbGFzcz0iY2hhcnQtY2FyZCBjaGFydC1ncmlkLWZ1bGwiPgogICAgPGRpdiBjbGFzcz0iY2hhcnQtdGl0bGUiPkFnZSBHcm91cCBEaXN0cmlidXRpb24gQWNyb3NzIFNlZ21lbnRzPC9kaXY+CiAgICA8ZGl2IGNsYXNzPSJjaGFydC1kZXNjIj5Ib3cgZGlmZmVyZW50IGFnZSBncm91cHMgYXJlIGRpc3RyaWJ1dGVkIGFjcm9zcyBlYWNoIGN1c3RvbWVyIHNlZ21lbnQg4oCUIHJldmVhbGluZyBnZW5lcmF0aW9uYWwgcHVyY2hhc2luZyBwYXR0ZXJucy48L2Rpdj4KICAgIDxkaXYgc3R5bGU9InBvc2l0aW9uOnJlbGF0aXZlO2hlaWdodDoxNzBweDsiPjxjYW52YXMgaWQ9InJfYWdlIj48L2NhbnZhcz48L2Rpdj4KICA8L2Rpdj4KCiAgPGRpdiBjbGFzcz0icGFnZS1mb290ZXIiPgogICAgPHNwYW4+QmluaXQgUm9iaW5zb24gS2FjaGhhcCDCtyBEYXRhIEFuYWx5dGljcyBJbnRlcm4gwrcgQWxnb25pdmU8L3NwYW4+CiAgICA8c3Bhbj5QYWdlIDIgb2YgMzwvc3Bhbj4KICA8L2Rpdj4KPC9kaXY+Cgo8IS0tID09PT09IFBBR0UgMzogUkVDT01NRU5EQVRJT05TID09PT09IC0tPgo8ZGl2IGNsYXNzPSJwYWdlIj4KICA8ZGl2IGNsYXNzPSJwYWdlLWhlYWRlci1iYXIiPgogICAgPGRpdj4KICAgICAgPGRpdiBjbGFzcz0ic2VjdGlvbi1udW0iPlNlY3Rpb24gMDM8L2Rpdj4KICAgICAgPGRpdiBjbGFzcz0ic2VjdGlvbi10aXRsZSI+QnVzaW5lc3MgUmVjb21tZW5kYXRpb25zPC9kaXY+CiAgICA8L2Rpdj4KICAgIAogIDwvZGl2PgoKICA8ZGl2IGNsYXNzPSJyZWMtZ3JpZCI+CiAgICA8ZGl2IGNsYXNzPSJyZWMtYm94Ij4KICAgICAgPGRpdiBjbGFzcz0icmVjLXNlZyIgc3R5bGU9ImNvbG9yOiM0ZjhlZjciPkJ1ZGdldCBDdXN0b21lcnMgKDQwLjUlKTwvZGl2PgogICAgICA8ZGl2IGNsYXNzPSJyZWMtdGl0bGUiPk1heGltaXNlIFZvbHVtZSB3aXRoIFZhbHVlIE9mZmVyczwvZGl2PgogICAgICA8ZGl2IGNsYXNzPSJyZWMtYm9keSI+VGhlIGxhcmdlc3Qgc2VnbWVudCB3aXRoIGhpZ2ggY3JlZGl0IHNjb3JlcyAoNzc5LjUpIGFuZCBzdHJvbmcgbG95YWx0eSAoNi4zIHlycykuIEZvY3VzIG9uIHZvbHVtZS1iYXNlZCBwcm9tb3Rpb25zLCBsb3lhbHR5IHJld2FyZHMsIGFuZCBFbGVjdHJvbmljcyBkZWFscyB0byBtYWludGFpbiBlbmdhZ2VtZW50IGFuZCBncmFkdWFsbHkgaW5jcmVhc2Ugc3BlbmRpbmcgc2NvcmVzLjwvZGl2PgogICAgICA8ZGl2PgogICAgICAgIDxzcGFuIGNsYXNzPSJyZWMtY2hpcCIgc3R5bGU9ImJhY2tncm91bmQ6I2VmZjZmZjtjb2xvcjojNGY4ZWY3Ij5Mb3lhbHR5IFByb2dyYW1zPC9zcGFuPgogICAgICAgIDxzcGFuIGNsYXNzPSJyZWMtY2hpcCIgc3R5bGU9ImJhY2tncm91bmQ6I2VmZjZmZjtjb2xvcjojNGY4ZWY3Ij5CdW5kbGUgRGVhbHM8L3NwYW4+CiAgICAgICAgPHNwYW4gY2xhc3M9InJlYy1jaGlwIiBzdHlsZT0iYmFja2dyb3VuZDojZWZmNmZmO2NvbG9yOiM0ZjhlZjciPkVsZWN0cm9uaWNzIE9mZmVyczwvc3Bhbj4KICAgICAgPC9kaXY+CiAgICA8L2Rpdj4KICAgIDxkaXYgY2xhc3M9InJlYy1ib3giPgogICAgICA8ZGl2IGNsYXNzPSJyZWMtc2VnIiBzdHlsZT0iY29sb3I6IzJlYzRhMCI+UHJlbWl1bSBDdXN0b21lcnMgKDE5LjUlKTwvZGl2PgogICAgICA8ZGl2IGNsYXNzPSJyZWMtdGl0bGUiPlVwc2VsbCB3aXRoIEV4Y2x1c2l2ZSBFeHBlcmllbmNlczwvZGl2PgogICAgICA8ZGl2IGNsYXNzPSJyZWMtYm9keSI+SGlnaGVzdCBzcGVuZGVycyB3aXRoIHN0cm9uZyBpbmNvbWUgYW5kIGxveWFsdHkgKDYuOSB5cnMpLiBJbnZlc3QgaW4gVklQIGV4cGVyaWVuY2VzLCBlYXJseSBwcm9kdWN0IGFjY2VzcywgYW5kIHBlcnNvbmFsaXNlZCBsdXh1cnkgcmVjb21tZW5kYXRpb25zLiBUaGlzIHNlZ21lbnQgeWllbGRzIHRoZSBoaWdoZXN0IHJldmVudWUgcGVyIGN1c3RvbWVyLjwvZGl2PgogICAgICA8ZGl2PgogICAgICAgIDxzcGFuIGNsYXNzPSJyZWMtY2hpcCIgc3R5bGU9ImJhY2tncm91bmQ6I2YwZmRmOTtjb2xvcjojMmVjNGEwIj5WSVAgQWNjZXNzPC9zcGFuPgogICAgICAgIDxzcGFuIGNsYXNzPSJyZWMtY2hpcCIgc3R5bGU9ImJhY2tncm91bmQ6I2YwZmRmOTtjb2xvcjojMmVjNGEwIj5QcmVtaXVtIEJ1bmRsZXM8L3NwYW4+CiAgICAgICAgPHNwYW4gY2xhc3M9InJlYy1jaGlwIiBzdHlsZT0iYmFja2dyb3VuZDojZjBmZGY5O2NvbG9yOiMyZWM0YTAiPlBlcnNvbmFsaXNhdGlvbjwvc3Bhbj4KICAgICAgPC9kaXY+CiAgICA8L2Rpdj4KICAgIDxkaXYgY2xhc3M9InJlYy1ib3giPgogICAgICA8ZGl2IGNsYXNzPSJyZWMtc2VnIiBzdHlsZT0iY29sb3I6I2Y0ODQ1ZiI+SW1wdWxzaXZlIEN1c3RvbWVycyAoMTcuNSUpPC9kaXY+CiAgICAgIDxkaXYgY2xhc3M9InJlYy10aXRsZSI+UmUtRW5nYWdlIHdpdGggVGFyZ2V0ZWQgQ2FtcGFpZ25zPC9kaXY+CiAgICAgIDxkaXYgY2xhc3M9InJlYy1ib2R5Ij5IaWdoZXN0IGVhcm5lcnMgKCQ4OC4yaykgYnV0IGxvd2VzdCBzcGVuZGVycyAoMTcuMSkg4oCUIGEgbWFqb3IgdW50YXBwZWQgb3Bwb3J0dW5pdHkuIERlcGxveSB0YXJnZXRlZCByZS1lbmdhZ2VtZW50IGNhbXBhaWducywgZmxhc2ggc2FsZXMsIGFuZCBwZXJzb25hbGlzZWQgcmVjb21tZW5kYXRpb25zIHRvIGNvbnZlcnQgZWFybmluZyBwb3dlciBpbnRvIHNwZW5kaW5nIGFjdGl2aXR5LjwvZGl2PgogICAgICA8ZGl2PgogICAgICAgIDxzcGFuIGNsYXNzPSJyZWMtY2hpcCIgc3R5bGU9ImJhY2tncm91bmQ6I2ZmZjdlZDtjb2xvcjojZjQ4NDVmIj5GbGFzaCBTYWxlczwvc3Bhbj4KICAgICAgICA8c3BhbiBjbGFzcz0icmVjLWNoaXAiIHN0eWxlPSJiYWNrZ3JvdW5kOiNmZmY3ZWQ7Y29sb3I6I2Y0ODQ1ZiI+UmUtZW5nYWdlbWVudDwvc3Bhbj4KICAgICAgICA8c3BhbiBjbGFzcz0icmVjLWNoaXAiIHN0eWxlPSJiYWNrZ3JvdW5kOiNmZmY3ZWQ7Y29sb3I6I2Y0ODQ1ZiI+RW1haWwgQ2FtcGFpZ25zPC9zcGFuPgogICAgICA8L2Rpdj4KICAgIDwvZGl2PgogICAgPGRpdiBjbGFzcz0icmVjLWJveCI+CiAgICAgIDxkaXYgY2xhc3M9InJlYy1zZWciIHN0eWxlPSJjb2xvcjojZTA1YzhhIj5BdmVyYWdlIEN1c3RvbWVycyAoMTEuNSUpPC9kaXY+CiAgICAgIDxkaXYgY2xhc3M9InJlYy10aXRsZSI+TnVydHVyZSBVcHdhcmQgd2l0aCBJbmNlbnRpdmVzPC9kaXY+CiAgICAgIDxkaXYgY2xhc3M9InJlYy1ib2R5Ij5Mb3cgaW5jb21lIGFuZCBsb3cgc3BlbmRpbmcg4oCUIGJ1dCBCdWRnZXQgY2F0ZWdvcnkgcHJlZmVyZW5jZSBzaG93cyBwcmljZSBzZW5zaXRpdml0eS4gSW50cm9kdWNlIGluc3RhbG1lbnQgcGxhbnMsIGNhc2hiYWNrIG9mZmVycywgYW5kIGdyYWR1YWwgdXBncmFkZSBwYXRocyB0byBtb3ZlIHRoZW0gdG93YXJkcyB0aGUgQnVkZ2V0IG9yIFByZW1pdW0gdGllcnMgb3ZlciB0aW1lLjwvZGl2PgogICAgICA8ZGl2PgogICAgICAgIDxzcGFuIGNsYXNzPSJyZWMtY2hpcCIgc3R5bGU9ImJhY2tncm91bmQ6I2ZkZjJmODtjb2xvcjojZTA1YzhhIj5DYXNoYmFjayBPZmZlcnM8L3NwYW4+CiAgICAgICAgPHNwYW4gY2xhc3M9InJlYy1jaGlwIiBzdHlsZT0iYmFja2dyb3VuZDojZmRmMmY4O2NvbG9yOiNlMDVjOGEiPkluc3RhbG1lbnQgUGxhbnM8L3NwYW4+CiAgICAgICAgPHNwYW4gY2xhc3M9InJlYy1jaGlwIiBzdHlsZT0iYmFja2dyb3VuZDojZmRmMmY4O2NvbG9yOiNlMDVjOGEiPlVwZ3JhZGUgUGF0aDwvc3Bhbj4KICAgICAgPC9kaXY+CiAgICA8L2Rpdj4KICA8L2Rpdj4KCiAgPGRpdiBzdHlsZT0ibWFyZ2luLXRvcDoyNHB4OyIgY2xhc3M9ImNoYXJ0LWNhcmQiPgogICAgPGRpdiBjbGFzcz0iY2hhcnQtdGl0bGUiPkF2ZyBFc3RpbWF0ZWQgU2F2aW5ncyBieSBTZWdtZW50PC9kaXY+CiAgICA8ZGl2IGNsYXNzPSJjaGFydC1kZXNjIj5GaW5hbmNpYWwgc2FmZXR5IG5ldCBvZiBjdXN0b21lcnMgcGVyIHNlZ21lbnQg4oCUIGluZm9ybWluZyBjcmVkaXQgYW5kIGZpbmFuY2luZyBzdHJhdGVneS48L2Rpdj4KICAgIDxkaXYgc3R5bGU9InBvc2l0aW9uOnJlbGF0aXZlO2hlaWdodDoxNjBweDttYXJnaW4tdG9wOjEycHg7Ij48Y2FudmFzIGlkPSJyX3NhdmluZ3MiPjwvY2FudmFzPjwvZGl2PgogIDwvZGl2PgoKICA8ZGl2IHN0eWxlPSJtYXJnaW4tdG9wOjIwcHg7cGFkZGluZzoyMHB4O2JhY2tncm91bmQ6IzBmMTExNztib3JkZXItcmFkaXVzOjEwcHg7Ij4KICAgIDxkaXYgc3R5bGU9ImZvbnQtc2l6ZToxMXB4O2NvbG9yOnJnYmEoMjU1LDI1NSwyNTUsMC40KTt0ZXh0LXRyYW5zZm9ybTp1cHBlcmNhc2U7bGV0dGVyLXNwYWNpbmc6MC4wOGVtO21hcmdpbi1ib3R0b206OHB4OyI+Q29uY2x1c2lvbjwvZGl2PgogICAgPGRpdiBzdHlsZT0iZm9udC1zaXplOjEzcHg7Y29sb3I6cmdiYSgyNTUsMjU1LDI1NSwwLjc1KTtsaW5lLWhlaWdodDoxLjc1O21heC13aWR0aDo3MDBweDsiPgogICAgICBUaGlzIGN1c3RvbWVyIHNlZ21lbnRhdGlvbiBhbmFseXNpcyByZXZlYWxzIGZpdmUgZGlzdGluY3QgYmVoYXZpb3VyYWwgZ3JvdXBzIHdpdGggc2lnbmlmaWNhbnRseSBkaWZmZXJlbnQgaW5jb21lIGxldmVscywgc3BlbmRpbmcgaGFiaXRzLCBhbmQgcHJvZHVjdCBwcmVmZXJlbmNlcy4gVGhlIGZpbmRpbmdzIGVuYWJsZSBwcmVjaXNlLCBkYXRhLWRyaXZlbiBtYXJrZXRpbmcgc3RyYXRlZ2llcyDigJQgZnJvbSBudXJ0dXJpbmcgQnVkZ2V0IGN1c3RvbWVycyB3aXRoIHZhbHVlIG9mZmVycyB0byB1bmxvY2tpbmcgdGhlIHJldmVudWUgcG90ZW50aWFsIG9mIHRoZSBoaWdoLWVhcm5pbmcgSW1wdWxzaXZlIHNlZ21lbnQuIEltcGxlbWVudGluZyBzZWdtZW50LXNwZWNpZmljIGNhbXBhaWducyBpcyBwcm9qZWN0ZWQgdG8gaW1wcm92ZSBjdXN0b21lciBlbmdhZ2VtZW50LCByZWR1Y2UgY2h1cm4sIGFuZCBpbmNyZWFzZSBvdmVyYWxsIHJldmVudWUgZWZmaWNpZW5jeS4KICAgIDwvZGl2PgogIDwvZGl2PgoKICA8ZGl2IGNsYXNzPSJwYWdlLWZvb3RlciI+CiAgICA8c3Bhbj5CaW5pdCBSb2JpbnNvbiBLYWNoaGFwIMK3IERhdGEgQW5hbHl0aWNzIEludGVybiDCtyBBbGdvbml2ZTwvc3Bhbj4KICAgIDxzcGFuPlBhZ2UgMyBvZiAzPC9zcGFuPgogIDwvZGl2Pgo8L2Rpdj4KCjxzY3JpcHQ+CmNvbnN0IGdyaWRDb2xvciA9ICdyZ2JhKDAsMCwwLDAuMDYpJzsKY29uc3QgdGlja0NvbG9yID0gJyM5Y2EzYWYnOwpjb25zdCBiYXNlRm9udCA9IHsgZmFtaWx5OiAiJ0RNIFNhbnMnLCBzYW5zLXNlcmlmIiwgc2l6ZTogMTEgfTsKQ2hhcnQuZGVmYXVsdHMuZm9udCA9IGJhc2VGb250OwpDaGFydC5kZWZhdWx0cy5jb2xvciA9IHRpY2tDb2xvcjsKCi8vIERPTlVUCm5ldyBDaGFydChkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgncl9kb251dCcpLCB7CiAgdHlwZTogJ2RvdWdobnV0JywKICBkYXRhOiB7CiAgICBsYWJlbHM6IFsnQnVkZ2V0ICg4MSknLCdQcmVtaXVtICgzOSknLCdJbXB1bHNpdmUgKDM1KScsJ0F2ZXJhZ2UgKDIzKScsJ0NvbnNlcnZhdGl2ZSAoMjIpJ10sCiAgICBkYXRhc2V0czogW3sgZGF0YTpbODEsMzksMzUsMjMsMjJdLCBiYWNrZ3JvdW5kQ29sb3I6WycjNGY4ZWY3JywnIzJlYzRhMCcsJyNmNDg0NWYnLCcjZTA1YzhhJywnIzliN2ZlOCddLCBib3JkZXJXaWR0aDozLCBib3JkZXJDb2xvcjonI2ZmZicsIGhvdmVyT2Zmc2V0OjYgfV0KICB9LAogIG9wdGlvbnM6IHsKICAgIHJlc3BvbnNpdmU6dHJ1ZSwgbWFpbnRhaW5Bc3BlY3RSYXRpbzpmYWxzZSwgY3V0b3V0Oic2MCUnLAogICAgcGx1Z2luczogewogICAgICBsZWdlbmQ6IHsgZGlzcGxheTp0cnVlLCBwb3NpdGlvbjonYm90dG9tJywgbGFiZWxzOnsgY29sb3I6JyM2YjcyODAnLCBmb250OntzaXplOjEwfSwgYm94V2lkdGg6MTAsIHBhZGRpbmc6OCB9IH0sCiAgICAgIHRvb2x0aXA6IHsgY2FsbGJhY2tzOiB7IGxhYmVsOiBjdHggPT4gYCAke2N0eC5sYWJlbH06ICR7KChjdHgucmF3LzIwMCkqMTAwKS50b0ZpeGVkKDEpfSVgIH0gfQogICAgfQogIH0KfSk7CgovLyBTQ0FUVEVSCm5ldyBDaGFydChkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgncl9zY2F0dGVyJyksIHsKICB0eXBlOiAnc2NhdHRlcicsCiAgZGF0YTogewogICAgZGF0YXNldHM6IFsKICAgICAgeyBsYWJlbDonQnVkZ2V0JywgYmFja2dyb3VuZENvbG9yOicjNGY4ZWY3OTknLCBwb2ludFJhZGl1czo0LAogICAgICAgIGRhdGE6W1szOSw2MV0sWzQwLDU1XSxbNDAsNDddLFs0Miw1Ml0sWzQzLDU0XSxbNDQsNTBdLFs0Niw1MV0sWzQ3LDUyXSxbNDgsNTFdLFs1NCw1OV0sWzU1LDU5XSxbNTYsNTVdLFs1Nyw1OF0sWzU4LDU0XSxbNjAsNTJdXSB9LAogICAgICB7IGxhYmVsOidQcmVtaXVtJywgYmFja2dyb3VuZENvbG9yOicjMmVjNGEwOTknLCBwb2ludFJhZGl1czo0LAogICAgICAgIGRhdGE6W1s2OSw5MV0sWzcwLDc3XSxbNzEsOTVdLFs3Miw3MV0sWzczLDg4XSxbNzQsNzJdLFs3NSw5M10sWzc2LDg3XSxbNzcsOTddLFs3OCw5MF0sWzc5LDgzXSxbODAsOTJdLFs4MSw4OV0sWzgyLDc0XSxbODQsODZdXSB9LAogICAgICB7IGxhYmVsOidJbXB1bHNpdmUnLCBiYWNrZ3JvdW5kQ29sb3I6JyNmNDg0NWY5OScsIHBvaW50UmFkaXVzOjQsCiAgICAgICAgZGF0YTpbWzcwLDI5XSxbNzEsMTFdLFs3Myw1XSxbNzQsMTBdLFs3NSw1XSxbNzcsMTJdLFs3OCwyMl0sWzc5LDM1XSxbODEsNV0sWzg1LDI2XSxbODcsMjddLFs4OCwxNF0sWzg5LDIzXSxbOTAsMThdLFs5MiwzMV1dIH0sCiAgICAgIHsgbGFiZWw6J0F2ZXJhZ2UnLCBiYWNrZ3JvdW5kQ29sb3I6JyNlMDVjOGE5OScsIHBvaW50UmFkaXVzOjQsCiAgICAgICAgZGF0YTpbWzE1LDM5XSxbMTYsNl0sWzE3LDQwXSxbMTksM10sWzIwLDE1XSxbMjEsMzVdLFsyMywyOV0sWzI0LDM1XSxbMjgsMTRdLFsyOSwzMV0sWzMwLDRdLFszMyw0XSxbMzQsMTddLFszNywyNl0sWzM4LDM1XV0gfSwKICAgICAgeyBsYWJlbDonQ29uc2VydmF0aXZlJywgYmFja2dyb3VuZENvbG9yOicjOWI3ZmU4OTknLCBwb2ludFJhZGl1czo0LAogICAgICAgIGRhdGE6W1sxNSw4MV0sWzE2LDc3XSxbMTcsNzZdLFsxOCw5NF0sWzE5LDcyXSxbMjAsNzddLFsyMSw2Nl0sWzIzLDk4XSxbMjQsNzNdLFsyNSw3M10sWzI4LDgyXSxbMjksODddLFszMCw3M10sWzMzLDkyXSxbMzQsNzNdXSB9CiAgICBdCiAgfSwKICBvcHRpb25zOiB7CiAgICByZXNwb25zaXZlOnRydWUsIG1haW50YWluQXNwZWN0UmF0aW86ZmFsc2UsCiAgICBwbHVnaW5zOiB7IGxlZ2VuZDp7ZGlzcGxheTpmYWxzZX0sIHRvb2x0aXA6eyBjYWxsYmFja3M6eyBsYWJlbDogY3R4ID0+IGAgJHtjdHguZGF0YXNldC5sYWJlbH06IEluY29tZSAkJHtjdHgucGFyc2VkLnh9ayDCtyBTcGVuZCAke2N0eC5wYXJzZWQueX1gIH0gfSB9LAogICAgc2NhbGVzOiB7CiAgICAgIHg6IHsgdGl0bGU6e2Rpc3BsYXk6dHJ1ZSx0ZXh0OidBbm51YWwgSW5jb21lIChrJCknLGNvbG9yOnRpY2tDb2xvcixmb250OntzaXplOjEwfX0sIGdyaWQ6e2NvbG9yOmdyaWRDb2xvcn0sIG1pbjowLCBtYXg6MTMwIH0sCiAgICAgIHk6IHsgdGl0bGU6e2Rpc3BsYXk6dHJ1ZSx0ZXh0OidTcGVuZGluZyBTY29yZScsY29sb3I6dGlja0NvbG9yLGZvbnQ6e3NpemU6MTB9fSwgZ3JpZDp7Y29sb3I6Z3JpZENvbG9yfSwgbWluOjAsIG1heDoxMTAgfQogICAgfQogIH0KfSk7CgovLyBCQVIKbmV3IENoYXJ0KGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdyX2JhcicpLCB7CiAgdHlwZTonYmFyJywKICBkYXRhOnsKICAgIGxhYmVsczpbJ0J1ZGdldCcsJ1ByZW1pdW0nLCdJbXB1bHNpdmUnLCdBdmVyYWdlJywnQ29uc2Vydi4nXSwKICAgIGRhdGFzZXRzOlsKICAgICAgeyBsYWJlbDonSW5jb21lIChrJCknLCBkYXRhOls1NS4zLDg2LjUsODguMiwyNi4zLDI1LjddLCBiYWNrZ3JvdW5kQ29sb3I6JyM0ZjhlZjdjYycsIGJvcmRlclJhZGl1czo0LCBiYXJQZXJjZW50YWdlOjAuNDIgfSwKICAgICAgeyBsYWJlbDonU3BlbmRpbmcgU2NvcmUnLCBkYXRhOls0OS41LDgyLjEsMTcuMSwyMC45LDc5LjRdLCBiYWNrZ3JvdW5kQ29sb3I6JyMyZWM0YTBjYycsIGJvcmRlclJhZGl1czo0LCBiYXJQZXJjZW50YWdlOjAuNDIgfQogICAgXQogIH0sCiAgb3B0aW9uczp7CiAgICByZXNwb25zaXZlOnRydWUsIG1haW50YWluQXNwZWN0UmF0aW86ZmFsc2UsCiAgICBwbHVnaW5zOnsgbGVnZW5kOntkaXNwbGF5OmZhbHNlfSB9LAogICAgc2NhbGVzOnsgeDp7Z3JpZDp7ZGlzcGxheTpmYWxzZX19LCB5OntncmlkOntjb2xvcjpncmlkQ29sb3J9fSB9CiAgfQp9KTsKCi8vIEdFTkRFUgpuZXcgQ2hhcnQoZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ3JfZ2VuZGVyJyksIHsKICB0eXBlOidiYXInLAogIGRhdGE6ewogICAgbGFiZWxzOlsnQnVkZ2V0JywnUHJlbWl1bScsJ0ltcHVsc2l2ZScsJ0F2ZXJhZ2UnLCdDb25zZXJ2LiddLAogICAgZGF0YXNldHM6WwogICAgICB7IGxhYmVsOidGZW1hbGUnLCBkYXRhOls0OCwyMSwxNiwxNCwxM10sIGJhY2tncm91bmRDb2xvcjonI2UwNWM4YWNjJywgYm9yZGVyUmFkaXVzOjQsIGJhclBlcmNlbnRhZ2U6MC41NSB9LAogICAgICB7IGxhYmVsOidNYWxlJywgICBkYXRhOlszMywxOCwxOSw5LDldLCAgIGJhY2tncm91bmRDb2xvcjonIzRmOGVmN2NjJywgYm9yZGVyUmFkaXVzOjQsIGJhclBlcmNlbnRhZ2U6MC41NSB9CiAgICBdCiAgfSwKICBvcHRpb25zOnsKICAgIHJlc3BvbnNpdmU6dHJ1ZSwgbWFpbnRhaW5Bc3BlY3RSYXRpbzpmYWxzZSwKICAgIHBsdWdpbnM6eyBsZWdlbmQ6e2Rpc3BsYXk6ZmFsc2V9IH0sCiAgICBzY2FsZXM6eyB4OntzdGFja2VkOnRydWUsZ3JpZDp7ZGlzcGxheTpmYWxzZX19LCB5OntzdGFja2VkOnRydWUsZ3JpZDp7Y29sb3I6Z3JpZENvbG9yfX0gfQogIH0KfSk7CgovLyBDQVRFR09SWQpuZXcgQ2hhcnQoZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ3JfY2F0JyksIHsKICB0eXBlOidkb3VnaG51dCcsCiAgZGF0YTp7CiAgICBsYWJlbHM6WydFbGVjdHJvbmljcyAoNzgpJywnTHV4dXJ5ICg1NCknLCdGYXNoaW9uICg0MSknLCdCdWRnZXQgKDI3KSddLAogICAgZGF0YXNldHM6W3sgZGF0YTpbNzgsNTQsNDEsMjddLCBiYWNrZ3JvdW5kQ29sb3I6WycjNGY4ZWY3JywnIzliN2ZlOCcsJyNlMDVjOGEnLCcjMmVjNGEwJ10sIGJvcmRlcldpZHRoOjMsIGJvcmRlckNvbG9yOicjZmZmJyB9XQogIH0sCiAgb3B0aW9uczp7CiAgICByZXNwb25zaXZlOnRydWUsIG1haW50YWluQXNwZWN0UmF0aW86ZmFsc2UsIGN1dG91dDonNTUlJywKICAgIHBsdWdpbnM6eyBsZWdlbmQ6e2Rpc3BsYXk6dHJ1ZSxwb3NpdGlvbjonYm90dG9tJyxsYWJlbHM6e2NvbG9yOicjNmI3MjgwJyxmb250OntzaXplOjEwfSxib3hXaWR0aDoxMCxwYWRkaW5nOjZ9fSwgdG9vbHRpcDp7Y2FsbGJhY2tzOntsYWJlbDpjdHg9PmAgJHtjdHgubGFiZWx9YH19IH0KICB9Cn0pOwoKLy8gQUdFCm5ldyBDaGFydChkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgncl9hZ2UnKSwgewogIHR5cGU6J2JhcicsCiAgZGF0YTp7CiAgICBsYWJlbHM6WycxOC0yNScsJzI2LTM1JywnMzYtNTAnLCc1MS02NScsJzY1KyddLAogICAgZGF0YXNldHM6WwogICAgICB7IGxhYmVsOidCdWRnZXQnLCAgICAgICBkYXRhOlsxMywxNSwyNSwxNCwxMV0sIGJhY2tncm91bmRDb2xvcjonIzRmOGVmN2NjJywgYm9yZGVyUmFkaXVzOjMgfSwKICAgICAgeyBsYWJlbDonUHJlbWl1bScsICAgICAgZGF0YTpbMCwyOSwxMCwwLDBdLCAgICBiYWNrZ3JvdW5kQ29sb3I6JyMyZWM0YTBjYycsIGJvcmRlclJhZGl1czozIH0sCiAgICAgIHsgbGFiZWw6J0ltcHVsc2l2ZScsICAgIGRhdGE6WzUsNSwxOCw3LDBdLCAgICAgYmFja2dyb3VuZENvbG9yOicjZjQ4NDVmY2MnLCBib3JkZXJSYWRpdXM6MyB9LAogICAgICB7IGxhYmVsOidBdmVyYWdlJywgICAgICBkYXRhOlsyLDQsOSw3LDFdLCAgICAgIGJhY2tncm91bmRDb2xvcjonI2UwNWM4YWNjJywgYm9yZGVyUmFkaXVzOjMgfSwKICAgICAgeyBsYWJlbDonQ29uc2VydmF0aXZlJywgZGF0YTpbMTQsNywwLDAsMF0sICAgICBiYWNrZ3JvdW5kQ29sb3I6JyM5YjdmZThjYycsIGJvcmRlclJhZGl1czozIH0KICAgIF0KICB9LAogIG9wdGlvbnM6ewogICAgcmVzcG9uc2l2ZTp0cnVlLCBtYWludGFpbkFzcGVjdFJhdGlvOmZhbHNlLAogICAgcGx1Z2luczp7IGxlZ2VuZDp7ZGlzcGxheTp0cnVlLHBvc2l0aW9uOidyaWdodCcsbGFiZWxzOntjb2xvcjonIzZiNzI4MCcsZm9udDp7c2l6ZToxMH0sYm94V2lkdGg6MTAscGFkZGluZzo4fX0gfSwKICAgIHNjYWxlczp7IHg6e3N0YWNrZWQ6dHJ1ZSxncmlkOntkaXNwbGF5OmZhbHNlfX0sIHk6e3N0YWNrZWQ6dHJ1ZSxncmlkOntjb2xvcjpncmlkQ29sb3J9fSB9CiAgfQp9KTsKCi8vIFNBVklOR1MKbmV3IENoYXJ0KGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdyX3NhdmluZ3MnKSwgewogIHR5cGU6J2JhcicsCiAgZGF0YTp7CiAgICBsYWJlbHM6WydCdWRnZXQgQ3VzdG9tZXJzJywnUHJlbWl1bSBDdXN0b21lcnMnLCdJbXB1bHNpdmUgQ3VzdG9tZXJzJywnQXZlcmFnZSBDdXN0b21lcnMnLCdDb25zZXJ2YXRpdmUgQ3VzdG9tZXJzJ10sCiAgICBkYXRhc2V0czpbeyBsYWJlbDonQXZnIFNhdmluZ3MgKGskKScsIGRhdGE6WzM3LjEsMzkuMiw3Ny45LDIyLjUsMTIuMl0sCiAgICAgIGJhY2tncm91bmRDb2xvcjpbJyM0ZjhlZjcnLCcjMmVjNGEwJywnI2Y0ODQ1ZicsJyNlMDVjOGEnLCcjOWI3ZmU4J10sCiAgICAgIGJvcmRlclJhZGl1czo2LCBiYXJQZXJjZW50YWdlOjAuNTUgfV0KICB9LAogIG9wdGlvbnM6ewogICAgaW5kZXhBeGlzOid5JywKICAgIHJlc3BvbnNpdmU6dHJ1ZSwgbWFpbnRhaW5Bc3BlY3RSYXRpbzpmYWxzZSwKICAgIHBsdWdpbnM6eyBsZWdlbmQ6e2Rpc3BsYXk6ZmFsc2V9LCB0b29sdGlwOntjYWxsYmFja3M6e2xhYmVsOmN0eD0+YCAkJHtjdHgucmF3fWsgYXZnIHNhdmluZ3NgfX0gfSwKICAgIHNjYWxlczp7IHg6e2dyaWQ6e2NvbG9yOmdyaWRDb2xvcn0sdGl0bGU6e2Rpc3BsYXk6dHJ1ZSx0ZXh0OidFc3RpbWF0ZWQgU2F2aW5ncyAoayQpJyxjb2xvcjp0aWNrQ29sb3IsZm9udDp7c2l6ZToxMH19fSwgeTp7Z3JpZDp7ZGlzcGxheTpmYWxzZX19IH0KICB9Cn0pOwo8L3NjcmlwdD4KPC9ib2R5Pgo8L2h0bWw+Cg==";
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const blob = new Blob([bytes], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const tab = window.open(url, '_blank');
+  if (!tab) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'Customer_Segmentation_Report_Algonive.html';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 8000);
+}
+
+
+// ===== NAV =====
+function navTo(btn, section) {
+  // update active state
+  document.querySelectorAll(".nav-item[data-section]")
+    .forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+
+  // scroll to section
+  const target = document.getElementById("sec-" + section);
+  if (target) {
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  // close sidebar on mobile after nav
+  if (window.innerWidth <= 768) {
+    document.getElementById("sidebar").classList.remove("open");
+    const h = document.getElementById("hamburger");
+    if (h) h.classList.remove("open");
+    document.getElementById("overlay").classList.remove("visible");
+  }
+}
+
+// highlight nav on scroll
+window.addEventListener("scroll", () => {
+  const sections = ["overview","segments","trends"];
+  let current = "overview";
+  sections.forEach(id => {
+    const el = document.getElementById("sec-" + id);
+    if (el && el.getBoundingClientRect().top <= 120) current = id;
+  });
+  document.querySelectorAll(".nav-item[data-section]").forEach(b => {
+    b.classList.toggle("active", b.dataset.section === current);
+  });
+});
+
+// ===== INIT =====
+updateAll();
+</script>
+</body>
+</html>
