@@ -1,4 +1,4 @@
-# Customer Segmentation Using Python
+# Customer Segmentation 
 **Algonive Data Analytics Internship Project**
 
 ## Overview
